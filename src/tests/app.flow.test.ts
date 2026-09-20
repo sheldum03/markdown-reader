@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import App from '../App.vue'
+import { exportMarkdown } from '../lib/markdown/export'
+vi.mock('../lib/markdown/export', () => ({ exportMarkdown: vi.fn(async (source: string) => '<!doctype html><p>' + source + '</p>') }))
 import { invoke } from '@tauri-apps/api/core'
 import { ask, open, save } from '@tauri-apps/plugin-dialog'
 import { useWorkspaceStore } from '../stores/workspace'
@@ -12,6 +14,7 @@ const milkdownLifecycle = vi.hoisted(() => ({
   unmountCount: 0,
   switchRequests: 0,
   saveCurrentContentRequests: 0,
+  saveBarrier: null as Promise<void> | null,
   saveCurrentContentError: null as Error | null,
   replacementRequests: [] as string[],
   allowSwitch: true,
@@ -52,12 +55,13 @@ vi.mock('../components/FileTree.vue', () => ({
   },
 }))
 
-vi.mock('../components/MilkdownEditor.vue', () => ({
+vi.mock('../components/MarkdownDocument.vue', () => ({
   default: {
     props: ['file', 'saveContent'],
-    emits: ['createComment', 'translate'],
+    emits: ['createComment', 'translate', 'headings'],
     mounted() {
       milkdownLifecycle.mountCount++
+      ;(this as any).$emit('headings', [{ text: (this as any).file.path, line: 1, level: 1, id: 'heading-1' }])
     },
     unmounted() {
       milkdownLifecycle.unmountCount++
@@ -71,6 +75,7 @@ vi.mock('../components/MilkdownEditor.vue', () => ({
         },
         async saveCurrentContent() {
           milkdownLifecycle.saveCurrentContentRequests++
+          if (milkdownLifecycle.saveCurrentContentRequests === 2) await milkdownLifecycle.saveBarrier
           if (milkdownLifecycle.saveCurrentContentError) {
             throw milkdownLifecycle.saveCurrentContentError
           }
@@ -126,7 +131,8 @@ vi.mock('../components/CommentSidebar.vue', () => ({
     template: `
       <div data-testid="comment-sidebar">
         <div v-for="comment in comments" :key="comment.id">
-          {{ comment.content }}
+          {{ comment.content }}|{{ comment.status }}
+          <button data-testid="resolve-comment" @click="$emit('resolve', comment.id)">解决评论</button>
         </div>
       </div>
     `,
@@ -150,11 +156,11 @@ vi.mock('../components/SearchPanel.vue', () => ({
 
 vi.mock('../components/DocumentOutline.vue', () => ({
   default: {
-    props: ['content'],
+    props: ['content', 'headings'],
     emits: ['select'],
     template: `
       <div data-testid="document-outline">
-        <span>{{ content }}</span>
+        <span>{{ content }}</span><span data-testid="outline-headings">{{ headings }}</span>
         <button data-testid="outline-select" @click="$emit('select', { level: 2, text: 'Details', line: 3 })">
           Details
         </button>
@@ -200,6 +206,7 @@ describe('App core user flow', () => {
     milkdownLifecycle.unmountCount = 0
     milkdownLifecycle.switchRequests = 0
     milkdownLifecycle.saveCurrentContentRequests = 0
+    milkdownLifecycle.saveBarrier = null
     milkdownLifecycle.saveCurrentContentError = null
     milkdownLifecycle.replacementRequests = []
     milkdownLifecycle.allowSwitch = true
@@ -228,14 +235,13 @@ describe('App core user flow', () => {
       }
 
       if (command === 'read_file') {
-        expect(args).toEqual({
-          workspacePath: '/tmp/workspace',
-          path: '/tmp/workspace/note.md',
-        })
-        return fileContent
+        expect(args.workspacePath).toBe('/tmp/workspace')
+        if (args.path === '/tmp/workspace/note.md') return fileContent
+        if (args.path === '/tmp/workspace/note.html') return '<h1>E2E HTML</h1>'
+        throw new Error(`Unexpected file: ${args.path}`)
       }
 
-      if (command === 'write_file') {
+      if (command === 'write_file_checked') {
         expect(args.workspacePath).toBe('/tmp/workspace')
         expect(args.path).toBe('/tmp/workspace/note.md')
         fileContent = args.content
@@ -257,12 +263,11 @@ describe('App core user flow', () => {
         return undefined
       }
 
-      if (command === 'export_as_html') {
+      if (command === 'export_rendered_html') {
         expect(args).toEqual({
           workspacePath: '/tmp/workspace',
-          filePath: '/tmp/workspace/note.md',
           outputPath: '/tmp/workspace/note.html',
-          cssContent: null,
+          html: expect.stringContaining('Edited keyword'),
         })
         return undefined
       }
@@ -276,7 +281,7 @@ describe('App core user flow', () => {
       },
     })
 
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
 
     expect(invoke).toHaveBeenCalledWith('list_files', { path: '/tmp/workspace' })
@@ -285,7 +290,7 @@ describe('App core user flow', () => {
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('Original keyword')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('Original keyword')
 
     await wrapper.get('[data-testid="save-edited"]').trigger('click')
     await flushPromises()
@@ -304,21 +309,69 @@ describe('App core user flow', () => {
     await flushPromises()
     expect(wrapper.get('[data-testid="comment-sidebar"]').text()).toContain('Review note')
 
-    await wrapper.findAll('button').find(button => button.text() === '搜索内容')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Search content')!.trigger('click')
     await wrapper.get('[data-testid="search-open"]').trigger('click')
     await flushPromises()
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('Edited keyword')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('Edited keyword')
 
-    await wrapper.findAll('button').find(button => button.text() === '导出 HTML')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Export HTML')!.trigger('click')
     await flushPromises()
     expect(save).toHaveBeenCalledWith({
       defaultPath: '/tmp/workspace/note.html',
       filters: [{ name: 'HTML', extensions: ['html'] }],
     })
-    expect(wrapper.text()).toContain('HTML 已导出')
+    expect(wrapper.text()).toContain('HTML reading version created and opened')
   })
 
-  it('切换不同文件时重建编辑器实例，避免 Milkdown 保留旧文档', async () => {
+  it('关闭当前标签后保留下一个标签的大纲', async () => {
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === 'read_file') return 'BBB'
+      if (command === 'load_comments') return []
+      return 'hash'
+    })
+    const pinia = createPinia(), workspace = useWorkspaceStore(pinia)
+    workspace.folderPath = '/tmp/workspace'
+    workspace.currentFile = { path: '/tmp/workspace/a.md', content: 'AAA' }
+    const wrapper = mount(App, { global: { plugins: [pinia] } })
+    await flushPromises()
+    await workspace.openFile('/tmp/workspace/b.md')
+    await flushPromises()
+    await wrapper.get('[aria-label="关闭 b.md"]').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'Show outline')!.trigger('click')
+    await flushPromises()
+    expect(workspace.currentFile?.path).toBe('/tmp/workspace/a.md')
+    expect(wrapper.get('[data-testid="outline-headings"]').text()).toContain('/tmp/workspace/a.md')
+    wrapper.unmount()
+  })
+
+  it('导出保存期间切换标签仍使用源文件内容与资源路径', async () => {
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === 'read_file') return 'BBB'
+      if (command === 'load_comments' || command === 'list_files') return []
+      return 'hash'
+    })
+    const pinia = createPinia(), workspace = useWorkspaceStore(pinia)
+    workspace.folderPath = '/tmp/workspace'
+    workspace.currentFile = { path: '/tmp/workspace/a.md', content: 'AAA' }
+    const wrapper = mount(App, { global: { plugins: [pinia] } })
+    await flushPromises()
+    let finishSave!: () => void
+    milkdownLifecycle.saveBarrier = new Promise<void>(resolve => { finishSave = resolve })
+    vi.mocked(save).mockResolvedValue('/tmp/workspace/a.html')
+    await wrapper.findAll('button').find(button => button.text() === 'Export HTML')!.trigger('click')
+    await flushPromises()
+    expect(milkdownLifecycle.saveCurrentContentRequests).toBe(2)
+    await workspace.openFile('/tmp/workspace/b.md')
+    await flushPromises()
+    finishSave()
+    await flushPromises()
+    expect(exportMarkdown).toHaveBeenCalledWith('AAA', '/tmp/workspace/a.md', '/tmp/workspace', false)
+    expect(invoke).toHaveBeenCalledWith('export_rendered_html', expect.objectContaining({ html: expect.stringContaining('AAA') }))
+    wrapper.unmount()
+  })
+
+  it('切换标签保留每个编辑器实例和草稿', async () => {
     vi.mocked(open).mockResolvedValue('/tmp/workspace')
     vi.mocked(invoke).mockImplementation(async (command: string, args?: any) => {
       if (command === 'list_files') {
@@ -361,25 +414,25 @@ describe('App core user flow', () => {
       },
     })
 
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
 
     const fileButtons = wrapper.findAll('[data-testid="file-item"]')
     await fileButtons[0].trigger('click')
     await flushPromises()
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# First')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# First')
 
     await fileButtons[1].trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# Second')
-    expect(milkdownLifecycle.switchRequests).toBe(1)
-    expect(milkdownLifecycle.actions).toEqual(['switch-file'])
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# Second')
+    expect(milkdownLifecycle.switchRequests).toBe(0)
+    expect(milkdownLifecycle.actions).toEqual([])
     expect(milkdownLifecycle.mountCount).toBe(2)
-    expect(milkdownLifecycle.unmountCount).toBe(1)
+    expect(milkdownLifecycle.unmountCount).toBe(0)
   })
 
-  it('编辑器拒绝切换时保留当前文件和未保存内容', async () => {
+  it('编辑器拒绝关闭时保留标签和未保存内容', async () => {
     vi.mocked(open).mockResolvedValue('/tmp/workspace')
     vi.mocked(invoke).mockImplementation(async (command: string, args?: any) => {
       if (command === 'list_files') {
@@ -395,7 +448,7 @@ describe('App core user flow', () => {
     })
 
     const wrapper = mount(App, { global: { plugins: [createPinia()] } })
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
 
     const fileButtons = wrapper.findAll('[data-testid="file-item"]')
@@ -403,12 +456,12 @@ describe('App core user flow', () => {
     await flushPromises()
     milkdownLifecycle.allowSwitch = false
 
-    await fileButtons[1].trigger('click')
+    await wrapper.get('[aria-label="关闭 first.md"]').trigger('click')
     await flushPromises()
 
     expect(milkdownLifecycle.switchRequests).toBe(1)
     expect(milkdownLifecycle.actions).toEqual(['switch-file'])
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# First')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# First')
     expect(milkdownLifecycle.mountCount).toBe(1)
     expect(invoke).not.toHaveBeenCalledWith('read_file', expect.objectContaining({
       path: '/tmp/workspace/second.md',
@@ -431,7 +484,7 @@ describe('App core user flow', () => {
 
     const pinia = createPinia()
     const wrapper = mount(App, { global: { plugins: [pinia] } })
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
@@ -444,14 +497,14 @@ describe('App core user flow', () => {
     }]
     milkdownLifecycle.allowSwitch = false
 
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
     expect(workspace.folderPath).toBe('/tmp/workspace')
     expect(workspace.currentFile?.path).toBe('/tmp/workspace/note.md')
     expect(comments.list).toHaveLength(1)
 
     milkdownLifecycle.allowSwitch = true
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
     expect(milkdownLifecycle.actions).toEqual(['switch-workspace', 'switch-workspace'])
     expect(workspace.folderPath).toBe('/tmp/other')
@@ -470,7 +523,7 @@ describe('App core user flow', () => {
     })
 
     const wrapper = mount(App, { global: { plugins: [createPinia()] } })
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
@@ -533,24 +586,24 @@ describe('App core user flow', () => {
       },
     })
 
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
 
     expect(wrapper.get('[data-testid="tree-state"]').text()).toContain('all|filename||0')
 
-    await wrapper.findAll('button').find(button => button.text() === '只看 Markdown')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Markdown')!.trigger('click')
     expect(wrapper.get('[data-testid="tree-state"]').text()).toContain('markdown|filename||0')
 
-    await wrapper.findAll('button').find(button => button.text() === '只看 HTML')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'HTML')!.trigger('click')
     expect(wrapper.get('[data-testid="tree-state"]').text()).toContain('html|filename||0')
 
-    await wrapper.findAll('button').find(button => button.text() === '显示标题')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Show titles')!.trigger('click')
     expect(wrapper.get('[data-testid="tree-state"]').text()).toContain('html|title||0')
 
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
 
-    await wrapper.findAll('button').find(button => button.text() === '定位当前文件')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Locate current file')!.trigger('click')
     expect(wrapper.get('[data-testid="tree-state"]').text()).toContain('all|title|/tmp/workspace/note.md|1')
   })
 
@@ -589,12 +642,13 @@ describe('App core user flow', () => {
       },
     })
 
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
 
-    await wrapper.findAll('button').find(button => button.text() === '打开标题大纲')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Show outline')!.trigger('click')
+    await flushPromises()
 
     expect(wrapper.get('[data-testid="document-outline"]').text()).toContain('# Intro')
     expect(wrapper.get('[data-testid="document-outline"]').text()).toContain('## Details')
@@ -649,7 +703,7 @@ describe('App core user flow', () => {
       },
     })
 
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
@@ -693,12 +747,12 @@ describe('App core user flow', () => {
     })
 
     const wrapper = mount(App, { global: { plugins: [createPinia()] } })
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
 
-    await wrapper.get('[aria-label="翻译服务"]').setValue('openai-compatible')
+    await wrapper.get('[aria-label="Translation service"]').setValue('openai-compatible')
     await wrapper.get('input[placeholder="https://api.deepseek.com/v1"]').setValue('https://api.deepseek.com/v1')
     await wrapper.get('input[placeholder="deepseek-chat"]').setValue('deepseek-chat')
     await wrapper.get('input[placeholder="sk-..."]').setValue('test-api-key')
@@ -716,9 +770,11 @@ describe('App core user flow', () => {
       if (command === 'test_openai_compatible_connection') {
         expect(args).toEqual({
           baseUrl: 'https://api.deepseek.com/v1',
+          model: 'deepseek-chat',
           apiKey: 'test-api-key',
+          verifyChat: false,
         })
-        return { modelCount: 2 }
+        return { modelCount: 2, chatVerified: false }
       }
       if (command === 'fetch_openai_compatible_models') {
         expect(args).toEqual({
@@ -730,36 +786,131 @@ describe('App core user flow', () => {
       throw new Error(`Unexpected command: ${command}`)
     })
 
-    const wrapper = mount(App, { global: { plugins: [createPinia()] } })
-    await wrapper.get('[aria-label="配置 OpenAI 兼容模型"]').trigger('click')
+    const pinia = createPinia()
+    const wrapper = mount(App, { global: { plugins: [pinia] } })
+    useWorkspaceStore(pinia).folderPath = '/tmp/workspace'
+    await wrapper.vm.$nextTick()
+    await wrapper.get('[aria-label="Configure OpenAI-compatible model"]').trigger('click')
     await wrapper.get('input[placeholder="https://api.deepseek.com/v1"]').setValue('https://api.deepseek.com/v1')
+    await wrapper.get('input[placeholder="deepseek-chat"]').setValue('deepseek-chat')
     await wrapper.get('input[placeholder="sk-..."]').setValue('test-api-key')
 
-    await wrapper.findAll('button').find(button => button.text() === '测试连接')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Test connection')!.trigger('click')
     await flushPromises()
-    expect(wrapper.text()).toContain('连接成功，可获取 2 个模型')
+    expect(wrapper.text()).toContain('Connected. 2 models are available.')
 
-    await wrapper.findAll('button').find(button => button.text() === '拉取模型列表')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Load models')!.trigger('click')
     await flushPromises()
     expect((wrapper.get('input[placeholder="deepseek-chat"]').element as HTMLInputElement).value)
       .toBe('deepseek-chat')
     expect(wrapper.findAll('#openai-compatible-models option').map(option => option.attributes('value')))
       .toEqual(['deepseek-chat', 'deepseek-reasoner'])
 
-    await wrapper.findAll('button').find(button => button.text() === '保存配置')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Save settings')!.trigger('click')
     expect(window.localStorage.getItem('md-html-reader.openai-compatible.baseUrl')).toBe('https://api.deepseek.com/v1')
     expect(window.localStorage.getItem('md-html-reader.openai-compatible.model')).toBe('deepseek-chat')
     expect(window.localStorage.getItem('md-html-reader.openai-compatible.apiKey')).toBeNull()
+  })
+
+  it('经授权后生成并在应用内打开 AI 苹果风阅读版', async () => {
+    let generated = false
+    vi.mocked(open).mockResolvedValue('/tmp/workspace')
+    vi.mocked(ask).mockResolvedValue(true)
+    vi.mocked(invoke).mockImplementation(async (command: string, args?: any) => {
+      if (command === 'list_files') {
+        return generated
+          ? [
+              { name: 'note.md', path: '/tmp/workspace/note.md', type: 'file', extension: '.md' },
+              { name: 'note.reading.html', path: '/tmp/workspace/note.reading.html', type: 'file', extension: '.html' },
+            ]
+          : [{ name: 'note.md', path: '/tmp/workspace/note.md', type: 'file', extension: '.md' }]
+      }
+      if (command === 'read_file') {
+        return args.path.endsWith('.reading.html') ? '<h1>AI Reading</h1>' : '# Note\n\nDocument body.'
+      }
+      if (command === 'calculate_file_hash') return 'hash-note'
+      if (command === 'load_comments') return []
+      if (command === 'generate_ai_reading_html') {
+        expect(args).toEqual({
+          service: 'ollama',
+          workspacePath: '/tmp/workspace',
+          filePath: '/tmp/workspace/note.md',
+          includeMarkdownSource: true,
+        })
+        generated = true
+        return {
+          outputPath: '/tmp/workspace/note.reading.html',
+          summaryCharacters: 96,
+        }
+      }
+      throw new Error(`Unexpected command: ${command}`)
+    })
+
+    const pinia = createPinia()
+    const wrapper = mount(App, { global: { plugins: [pinia] } })
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="file-item"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[aria-label="HTML export mode"]').setValue('ai-reading')
+    await wrapper.get('[aria-label="Include source Markdown"]').setValue(true)
+    await wrapper.findAll('button').find(button => button.text() === 'Create reading version')!.trigger('click')
+    await flushPromises()
+
+    expect(ask).toHaveBeenCalledWith(
+      expect.stringContaining('current Markdown file'),
+      { title: 'Allow AI reading version', kind: 'warning' },
+    )
+    expect(milkdownLifecycle.saveCurrentContentRequests).toBe(1)
+    expect(useWorkspaceStore(pinia).currentFile?.path).toBe('/tmp/workspace/note.reading.html')
+    expect(wrapper.text()).toContain('AI reading version created and opened (96 summary characters)')
   })
 
   it('文件夹选择失败时显示原因而不是静默失败', async () => {
     vi.mocked(open).mockRejectedValue(new Error('dialog permission denied'))
 
     const wrapper = mount(App, { global: { plugins: [createPinia()] } })
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('打开文件夹失败：dialog permission denied')
+    expect(wrapper.text()).toContain('Could not open folder: dialog permission denied')
+  })
+
+  it('解决评论失败时保留原状态并显示原因', async () => {
+    vi.mocked(open).mockResolvedValue('/tmp/workspace')
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === 'list_files') {
+        return [{ name: 'note.md', path: '/tmp/workspace/note.md', type: 'file', extension: '.md' }]
+      }
+      if (command === 'read_file') return '# Note'
+      if (command === 'calculate_file_hash') return 'hash-note'
+      if (command === 'load_comments') {
+        return [{
+          id: 'comment-1',
+          fileHash: 'hash-note',
+          anchor: { quote: 'Note', offset: 2, length: 4 },
+          content: 'Review note',
+          status: 'open',
+          createdAt: 1,
+          updatedAt: 1,
+        }]
+      }
+      if (command === 'update_comment') throw new Error('disk full')
+      throw new Error(`Unexpected command: ${command}`)
+    })
+
+    const pinia = createPinia()
+    const wrapper = mount(App, { global: { plugins: [pinia] } })
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="file-item"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="resolve-comment"]').trigger('click')
+    await flushPromises()
+
+    expect(useCommentsStore(pinia).list[0]).toMatchObject({ status: 'open', updatedAt: 1 })
+    expect(wrapper.text()).toContain('Could not resolve comment: disk full')
   })
 
   it('保存当前 Markdown 后生成并打开中文翻译副本', async () => {
@@ -808,20 +959,20 @@ describe('App core user flow', () => {
       global: { plugins: [createPinia()] },
     })
 
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
 
     await wrapper
       .findAll('button')
-      .find(button => button.text() === '一键翻译为中文副本')!
+      .find(button => button.text() === 'Translate to Chinese copy')!
       .trigger('click')
     await flushPromises()
 
     expect(milkdownLifecycle.saveCurrentContentRequests).toBe(1)
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# 你好')
-    expect(wrapper.text()).toContain('已生成中文翻译副本：note.zh.md')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# 你好')
+    expect(wrapper.text()).toContain('Chinese translation copy created: note.zh.md')
   })
 
   it('全文翻译期间不允许文件或工作区导航覆盖结果', async () => {
@@ -859,23 +1010,23 @@ describe('App core user flow', () => {
     })
 
     const wrapper = mount(App, { global: { plugins: [createPinia()] } })
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
 
     const fileButtons = wrapper.findAll('[data-testid="file-item"]')
     await fileButtons[0].trigger('click')
     await flushPromises()
 
-    const translateButton = wrapper.findAll('button').find(button => button.text() === '一键翻译为中文副本')!
+    const translateButton = wrapper.findAll('button').find(button => button.text() === 'Translate to Chinese copy')!
     await translateButton.trigger('click')
     await flushPromises()
 
-    expect((wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.element as HTMLButtonElement).disabled).toBe(true)
+    expect((wrapper.findAll('button').find(button => button.text() === 'Open folder')!.element as HTMLButtonElement).disabled).toBe(true)
     await fileButtons[1].trigger('click')
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# Hello')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# Hello')
     expect(milkdownLifecycle.switchRequests).toBe(0)
     expect(open).toHaveBeenCalledTimes(1)
 
@@ -888,7 +1039,7 @@ describe('App core user flow', () => {
     await flushPromises()
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# 你好')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# 你好')
   })
 
   it('全文翻译失败时保留当前文件并显示错误', async () => {
@@ -912,18 +1063,18 @@ describe('App core user flow', () => {
       global: { plugins: [createPinia()] },
     })
 
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
 
     await wrapper
       .findAll('button')
-      .find(button => button.text() === '一键翻译为中文副本')!
+      .find(button => button.text() === 'Translate to Chinese copy')!
       .trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# Hello')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# Hello')
     expect(wrapper.text()).toContain('中文翻译副本已存在，未覆盖原有文件')
   })
 
@@ -965,17 +1116,17 @@ describe('App core user flow', () => {
     })
 
     const wrapper = mount(App, { global: { plugins: [createPinia()] } })
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
 
-    await wrapper.findAll('button').find(button => button.text() === '根据评论提出建议')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Suggest from comments')!.trigger('click')
     await flushPromises()
 
     expect(ask).toHaveBeenCalledWith(
-      expect.stringContaining('1 条未解决评论'),
-      { title: 'AI 读取授权', kind: 'warning' },
+      expect.stringContaining('1 unresolved comments'),
+      { title: 'Allow AI access', kind: 'warning' },
     )
     expect(wrapper.get('[data-testid="document-assistant-panel"]').text()).toContain('补充一个具体例子')
   })
@@ -991,25 +1142,25 @@ describe('App core user flow', () => {
       if (command === 'calculate_file_hash') return 'hash-note'
       if (command === 'load_comments') return []
       if (command === 'optimize_document_with_comments') return { content: '# Optimized' }
-      if (command === 'write_file') throw new Error('write should not be called')
+      if (command === 'write_file_checked') throw new Error('write should not be called')
       throw new Error(`Unexpected command: ${command}`)
     })
 
     const wrapper = mount(App, { global: { plugins: [createPinia()] } })
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
 
-    await wrapper.findAll('button').find(button => button.text() === '优化当前文档')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Improve current document')!.trigger('click')
     await flushPromises()
     await wrapper.get('[data-testid="assistant-apply"]').trigger('click')
     await flushPromises()
 
     expect(ask).toHaveBeenNthCalledWith(
       2,
-      expect.stringContaining('写入当前文件'),
-      { title: '确认写入优化稿', kind: 'warning' },
+      expect.stringContaining('write the AI draft to the current file'),
+      { title: 'Confirm applying AI draft', kind: 'warning' },
     )
     expect(milkdownLifecycle.replacementRequests).toEqual([])
   })
@@ -1025,7 +1176,7 @@ describe('App core user flow', () => {
       if (command === 'calculate_file_hash') return 'hash-note'
       if (command === 'load_comments') return []
       if (command === 'optimize_document_with_comments') return { content: '# Optimized' }
-      if (command === 'write_file') {
+      if (command === 'write_file_checked') {
         expect(args).toEqual({
           workspacePath: '/tmp/workspace',
           path: '/tmp/workspace/note.md',
@@ -1037,12 +1188,12 @@ describe('App core user flow', () => {
     })
 
     const wrapper = mount(App, { global: { plugins: [createPinia()] } })
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
 
-    await wrapper.findAll('button').find(button => button.text() === '优化当前文档')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Improve current document')!.trigger('click')
     await flushPromises()
     await wrapper.get('[data-testid="assistant-permanent-write"]').setValue(true)
     await wrapper.get('[data-testid="assistant-apply"]').trigger('click')
@@ -1077,18 +1228,18 @@ describe('App core user flow', () => {
       if (command === 'optimize_document_with_comments') {
         return { content: args.markdown === '# Other' ? '# Other optimized' : '# Original optimized' }
       }
-      if (command === 'write_file') return undefined
+      if (command === 'write_file_checked') return undefined
       throw new Error(`Unexpected command: ${command}`)
     })
 
     const wrapper = mount(App, { global: { plugins: [createPinia()] } })
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
 
     const fileButtons = wrapper.findAll('[data-testid="file-item"]')
     await fileButtons[0].trigger('click')
     await flushPromises()
-    await wrapper.findAll('button').find(button => button.text() === '优化当前文档')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Improve current document')!.trigger('click')
     await flushPromises()
     await wrapper.get('[data-testid="assistant-permanent-write"]').setValue(true)
     await wrapper.get('[data-testid="assistant-apply"]').trigger('click')
@@ -1096,7 +1247,7 @@ describe('App core user flow', () => {
 
     await fileButtons[1].trigger('click')
     await flushPromises()
-    await wrapper.findAll('button').find(button => button.text() === '优化当前文档')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Improve current document')!.trigger('click')
     await flushPromises()
     expect(wrapper.get('[data-testid="document-assistant-panel"]').text()).toContain('false')
     await wrapper.get('[data-testid="assistant-apply"]').trigger('click')
@@ -1127,11 +1278,11 @@ describe('App core user flow', () => {
     })
 
     const wrapper = mount(App, { global: { plugins: [createPinia()] } })
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
-    await wrapper.findAll('button').find(button => button.text() === '根据评论提出建议')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Suggest from comments')!.trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).toContain('当前文件的未解决评论总长度不能超过 10000 字符')
@@ -1172,7 +1323,7 @@ describe('App core user flow', () => {
       },
     })
 
-    await wrapper.findAll('button').find(button => button.text() === '打开文件夹')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
@@ -1181,7 +1332,7 @@ describe('App core user flow', () => {
     expect(wrapper.find('[data-testid="html-renderer"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="rendered-html"]').text()).toContain('Page')
     expect(
-      wrapper.findAll('button').find(button => button.text() === '一键翻译为中文副本')!
+      wrapper.findAll('button').find(button => button.text() === 'Translate to Chinese copy')!
         .attributes('disabled')
     ).toBeDefined()
 

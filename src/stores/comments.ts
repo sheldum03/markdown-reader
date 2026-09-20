@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { relocateAnchor } from '../utils/comment-anchor'
+import { t } from '../i18n'
 
 export interface Comment {
   id: string
@@ -23,8 +24,10 @@ export const useCommentsStore = defineStore('comments', () => {
   const currentWorkspacePath = ref<string | null>(null)
   const currentFileHash = ref<string | null>(null)
   const currentFilePath = ref<string | null>(null)
+  let loadRequest = 0
 
   function clearCurrentFile() {
+    ++loadRequest
     list.value = []
     currentWorkspacePath.value = null
     currentFileHash.value = null
@@ -32,24 +35,29 @@ export const useCommentsStore = defineStore('comments', () => {
   }
 
   async function loadComments(workspacePath: string, filePath: string, currentContent?: string) {
+    clearCurrentFile()
+    const request = loadRequest
     try {
       const hash = await invoke<string>('calculate_file_hash', {
         workspacePath,
         path: filePath,
       })
-      currentWorkspacePath.value = workspacePath
-      currentFileHash.value = hash
-      currentFilePath.value = filePath
+      if (request !== loadRequest) return
 
       const comments = await invoke<Comment[]>('load_comments', {
         workspacePath,
         fileHash: hash,
         filePath: filePath
       })
+      if (request !== loadRequest) return
+      currentWorkspacePath.value = workspacePath
+      currentFileHash.value = hash
+      currentFilePath.value = filePath
       list.value = currentContent
         ? relocateComments(comments, currentContent)
         : [...comments]
     } catch (error) {
+      if (request !== loadRequest) return
       console.error('加载评论失败:', error)
       clearCurrentFile()
     }
@@ -75,19 +83,22 @@ export const useCommentsStore = defineStore('comments', () => {
     filePath = currentFilePath.value,
   ) {
     if (!workspacePath || !filePath) return
+    const request = loadRequest
 
     const hash = await invoke<string>('calculate_file_hash', {
       workspacePath,
       path: filePath,
     })
+    if (request !== loadRequest) return
     currentWorkspacePath.value = workspacePath
     currentFileHash.value = hash
     currentFilePath.value = filePath
   }
 
   async function saveComment(comment: Omit<Comment, 'id' | 'createdAt' | 'updatedAt'>) {
+    const request = loadRequest
     if (!currentWorkspacePath.value || !currentFileHash.value || !currentFilePath.value) {
-      throw new Error('未加载评论文件')
+      throw new Error(t('noCommentFileLoaded'))
     }
 
     try {
@@ -105,17 +116,17 @@ export const useCommentsStore = defineStore('comments', () => {
         comment: newComment,
       })
 
-      list.value.push(newComment)
+      if (request === loadRequest) list.value.push(newComment)
       return newComment
     } catch (error) {
-      console.error('保存评论失败:', error)
+      console.error('Failed to save comment:', error)
       throw error
     }
   }
 
   async function deleteComment(commentId: string) {
     if (!currentWorkspacePath.value || !currentFileHash.value || !currentFilePath.value) {
-      throw new Error('未加载评论文件')
+      throw new Error(t('noCommentFileLoaded'))
     }
 
     try {
@@ -128,7 +139,7 @@ export const useCommentsStore = defineStore('comments', () => {
 
       list.value = list.value.filter(c => c.id !== commentId)
     } catch (error) {
-      console.error('删除评论失败:', error)
+      console.error('Failed to delete comment:', error)
       throw error
     }
   }
@@ -138,21 +149,25 @@ export const useCommentsStore = defineStore('comments', () => {
     if (!comment) return
 
     if (!currentWorkspacePath.value || !currentFileHash.value || !currentFilePath.value) {
-      throw new Error('未加载评论文件')
+      throw new Error(t('noCommentFileLoaded'))
     }
 
-    comment.status = status
-    comment.updatedAt = Date.now()
+    const updatedComment: Comment = {
+      ...comment,
+      status,
+      updatedAt: Date.now(),
+    }
 
     try {
       await invoke('update_comment', {
         workspacePath: currentWorkspacePath.value,
         fileHash: currentFileHash.value,
         filePath: currentFilePath.value,
-        comment,
+        comment: updatedComment,
       })
+      Object.assign(comment, updatedComment)
     } catch (error) {
-      console.error('更新评论失败:', error)
+      console.error('Failed to update comment:', error)
       throw error
     }
   }

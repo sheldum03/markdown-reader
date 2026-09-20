@@ -125,6 +125,19 @@ mod tests {
     }
 
     #[test]
+    fn list_files_includes_yaml_documents() {
+        let workspace = unique_test_root("yaml");
+        fs::create_dir_all(&workspace).unwrap();
+        fs::write(workspace.join("config.yaml"), "enabled: true").unwrap();
+
+        let files = list_workspace_files(workspace.to_string_lossy().to_string()).unwrap();
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "config.yaml");
+        assert_eq!(files[0].extension.as_deref(), Some(".yaml"));
+    }
+
+    #[test]
     fn read_file_decodes_declared_legacy_html() {
         let workspace = unique_test_root("legacy-encoding");
         fs::create_dir_all(&workspace).unwrap();
@@ -166,9 +179,12 @@ mod tests {
 }
 
 #[command]
-pub fn list_files(app: AppHandle, path: String) -> Result<Vec<FileItem>, String> {
+pub async fn list_files(app: AppHandle, path: String) -> Result<Vec<FileItem>, String> {
     let root_path = workspace_root(&path)?;
-    let files = scan_directory(&root_path)?;
+    let scan_path = root_path.clone();
+    let files = tauri::async_runtime::spawn_blocking(move || scan_directory(&scan_path))
+        .await
+        .map_err(|error| format!("扫描工作区失败: {}", error))??;
     app.state::<tauri::Scopes>()
         .allow_directory(&root_path, true)
         .map_err(|error| format!("授权 HTML 预览资源失败: {}", error))?;
@@ -176,7 +192,6 @@ pub fn list_files(app: AppHandle, path: String) -> Result<Vec<FileItem>, String>
     Ok(files)
 }
 
-#[cfg(test)]
 pub fn list_workspace_files(path: String) -> Result<Vec<FileItem>, String> {
     let root_path = workspace_root(&path)?;
     scan_directory(&root_path)
@@ -214,7 +229,7 @@ fn scan_directory(path: &Path) -> Result<Vec<FileItem>, String> {
                 .and_then(|e| e.to_str())
                 .map(|s| format!(".{}", s));
 
-            // 只包含受支持的 Markdown 和 HTML 文件
+            // 只包含受支持的 Markdown、HTML 和 YAML 文件
             if is_supported_document_path(&path) {
                 items.push(FileItem {
                     name,
@@ -372,4 +387,34 @@ fn decode_basic_html_entities(text: &str) -> String {
         .replace("&gt;", ">")
         .replace("&quot;", "\"")
         .replace("&#39;", "'")
+}
+
+#[command]
+pub fn write_file_checked(
+    workspace_path: String,
+    path: String,
+    content: String,
+    expected_content: String,
+) -> Result<(), String> {
+    use std::io::{Seek, SeekFrom, Write};
+    let path = document_file_in_workspace(&workspace_path, &path)?;
+    let mut file = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)
+        .map_err(|e| e.to_string())?;
+    file.lock().map_err(|e| e.to_string())?;
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+    if decode_document_bytes(&bytes) != expected_content {
+        return Err(
+            "文件已被外部程序修改，未覆盖磁盘。请保留当前草稿并重新打开文件核对差异。".into(),
+        );
+    }
+    file.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
+    file.write_all(content.as_bytes())
+        .map_err(|e| e.to_string())?;
+    file.set_len(content.len() as u64)
+        .map_err(|e| e.to_string())?;
+    file.sync_all().map_err(|e| e.to_string())
 }

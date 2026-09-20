@@ -21,8 +21,11 @@ async function waitForBodyText(text: string) {
 }
 
 async function setEditorContent(text: string) {
+  const edit = $('//*[@data-active-document="true"]//button[normalize-space(.)="编辑"]')
+  if (await edit.getAttribute('aria-pressed') !== 'true') await edit.click()
+  await browser.waitUntil(async () => browser.execute(() => !!(window as any).__markdownHtmlE2E))
   const updated = await browser.execute((content) => {
-    const helpers = (window as any).__markdownHtmlE2E
+    const helpers = (document.querySelector('[data-active-document="true"] .cm-editor')?.parentElement as any)?.__editor || (window as any).__markdownHtmlE2E
     if (!helpers) return false
     helpers.setEditorContent(content)
     return true
@@ -34,38 +37,15 @@ async function setEditorContent(text: string) {
 
 async function selectEditorText(text: string) {
   const selected = await browser.execute((target) => {
-    const root = document.querySelector('.milkdown-container')
-    if (!root) return false
-
-    const editor = root.querySelector<HTMLElement>('.ProseMirror, [contenteditable="true"]')
-    editor?.focus()
-
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-    let node: Node | null
-    while ((node = walker.nextNode())) {
-      const index = node.textContent?.indexOf(target) ?? -1
-      if (index >= 0) {
-        const range = document.createRange()
-        range.setStart(node, index)
-        range.setEnd(node, index + target.length)
-
-        const selection = window.getSelection()
-        selection?.removeAllRanges()
-        selection?.addRange(range)
-        document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
-        return true
-      }
-    }
-
-    return false
+    const helpers = (document.querySelector('[data-active-document="true"] .cm-editor')?.parentElement as any)?.__editor
+    return helpers?.selectText(target) || false
   }, text)
-
   expect(selected).toBe(true)
-  await waitForBodyText('添加评论')
+  await waitForBodyText('Add comment')
 }
 
 async function openE2EWorkspaceAndNote(expectedText: string) {
-  await buttonWithText('打开文件夹').click()
+  await buttonWithText('Open folder').click()
   await waitForBodyText('note.md')
 
   await buttonContaining('note.md').click()
@@ -73,7 +53,9 @@ async function openE2EWorkspaceAndNote(expectedText: string) {
 }
 
 describe('MD+HTML Reader app restart persistence', () => {
-  before(() => {
+  before(async () => {
+    await browser.execute(() => localStorage.setItem('md-html-reader.locale', 'en'))
+    await browser.refresh()
     if (phase === 'create') {
       rmSync(workspacePath, { recursive: true, force: true })
       mkdirSync(workspacePath, { recursive: true })
@@ -93,14 +75,14 @@ describe('MD+HTML Reader app restart persistence', () => {
     if (phase === 'create') {
       await openE2EWorkspaceAndNote('Original restart text')
       await setEditorContent('# Restart E2E Note\n\nEdited after app restart.\n\nRestart comment target.')
-      await buttonContaining('保存').click()
-      await waitForBodyText('刚刚保存')
+      await buttonContaining('Save').click()
+      await waitForBodyText('Saved just now')
       expect(readFileSync(notePath, 'utf8')).toContain('Edited after app restart')
 
       await selectEditorText('Restart comment target')
-      await buttonContaining('添加评论').click()
-      await $('textarea[placeholder="输入评论内容..."]').setValue('Reopen review note')
-      await buttonWithText('提交').click()
+      await buttonContaining('Add comment').click()
+      await $('textarea[placeholder="Write a comment..."]').setValue('Reopen review note')
+      await buttonWithText('Submit').click()
       await waitForBodyText('Reopen review note')
       expect(existsSync(join(workspacePath, '.comments'))).toBe(true)
       return

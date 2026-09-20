@@ -1,53 +1,99 @@
 <template>
   <div id="app" class="h-screen flex flex-col bg-gray-50">
-    <!-- 顶部工具栏 -->
-    <header class="h-12 bg-white border-b border-gray-200 flex items-center px-4">
-      <h1 class="text-lg font-semibold text-gray-800">Markdown HTML Editor</h1>
-      <div class="ml-auto flex gap-2">
+    <header class="h-14 bg-white border-b border-gray-200 flex items-center px-4">
+      <div>
+        <h1 class="text-lg font-semibold text-gray-900">MD+HTML Reader</h1>
+        <p class="text-xs text-gray-500">{{ t('appSubtitle') }}</p>
+      </div>
+      <div class="ml-auto flex items-center gap-2">
+        <select
+          :value="locale"
+          class="rounded border border-gray-200 bg-white px-2 py-1 text-sm text-gray-700"
+          :aria-label="t('language')"
+          @change="changeLocale"
+        >
+          <option value="en">English</option>
+          <option value="zh-CN">中文</option>
+        </select>
+        <button
+          class="px-3 py-1 text-sm text-gray-600 rounded hover:bg-gray-100"
+          :aria-label="t('quickStart')"
+          @click="showGettingStarted = true"
+        >
+          {{ t('quickStart') }}
+        </button>
+        <button v-if="workspace.folderPath" class="px-2 text-sm" @click="showMcp = !showMcp">MCP</button>
+        <details v-if="workspace.folderPath" class="relative">
+          <summary class="cursor-pointer list-none px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
+            {{ t('documentTools') }}
+          </summary>
+          <div class="absolute right-0 z-30 mt-2 w-[44rem] max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 bg-white p-3 shadow-xl">
+            <div class="flex flex-wrap gap-2">
         <button
           @click="openSearch('files')"
           class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
-          :disabled="!workspace.folderPath || isMarkdownTranslating"
+          :disabled="isMarkdownTranslating"
         >
-          搜索文件
+          {{ t('findFiles') }}
         </button>
         <button
           @click="openSearch('content')"
           class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
-          :disabled="!workspace.folderPath || isMarkdownTranslating"
+          :disabled="isMarkdownTranslating"
         >
-          搜索内容
+          {{ t('searchContent') }}
         </button>
-        <button
-          @click="exportHtml"
-          class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
-          :disabled="!workspace.currentFile || isExporting"
+        <select
+          v-model="htmlGenerationMode"
+          class="px-2 py-1 text-sm bg-gray-100 text-gray-700 rounded"
+          :aria-label="t('htmlExportMode')"
         >
-          导出 HTML
+          <option value="default">{{ t('htmlExport') }}</option>
+          <option value="ai-reading">{{ t('aiReadingVersion') }}</option>
+        </select>
+        <label
+          class="flex items-center gap-1 px-2 py-1 text-sm text-gray-700 bg-gray-100 rounded disabled:opacity-50"
+          :title="t('includeMarkdownTitle')"
+        >
+          <input
+            v-model="includeMarkdownSource"
+            type="checkbox"
+            :aria-label="t('includeSourceMarkdown')"
+            :disabled="!currentIsMarkdown || isExporting"
+          />
+          {{ t('includeMarkdown') }}
+        </label>
+        <button
+          @click="generateHtml"
+          class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
+          :disabled="!currentIsMarkdown || isExporting || (htmlGenerationMode === 'ai-reading' && !assistantServiceReady)"
+          :title="htmlGenerationMode === 'ai-reading' ? assistantDisabledReason : ''"
+        >
+          {{ isExporting ? t('exporting') : htmlGenerationMode === 'ai-reading' ? t('createReadingVersion') : t('exportHtml') }}
         </button>
         <select
           v-model="translationService"
           @change="handleTranslationServiceChange"
           class="px-2 py-1 text-sm bg-gray-100 text-gray-700 rounded"
-          aria-label="翻译服务"
+          :aria-label="t('translationService')"
         >
           <option value="ollama">Ollama</option>
-          <option value="tencent">腾讯翻译</option>
-          <option value="openai-compatible">OpenAI 兼容</option>
+          <option value="tencent">Tencent Translate</option>
+          <option value="openai-compatible">OpenAI-compatible</option>
         </select>
         <button
           @click="openAiConfigOpen = !openAiConfigOpen"
           class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-          aria-label="配置 OpenAI 兼容模型"
+          :aria-label="t('configureModel')"
         >
-          模型配置
+          {{ t('modelSettings') }}
         </button>
         <button
           @click="translateMarkdownFile"
           class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
           :disabled="!currentIsMarkdown || isMarkdownTranslating || (translationService === 'openai-compatible' && !openAiConfigComplete)"
         >
-          {{ isMarkdownTranslating ? '翻译中...' : '一键翻译为中文副本' }}
+          {{ isMarkdownTranslating ? t('translating') : t('translateChineseCopy') }}
         </button>
         <button
           @click="runDocumentAssistant('suggestions')"
@@ -55,7 +101,7 @@
           :disabled="!currentIsMarkdown || !comments.list.length || isAssistantRunning || !assistantServiceReady"
           :title="assistantDisabledReason"
         >
-          {{ isAssistantRunning && assistantMode === 'suggestions' ? '分析中...' : '根据评论提出建议' }}
+          {{ isAssistantRunning && assistantMode === 'suggestions' ? t('reviewing') : t('suggestFromComments') }}
         </button>
         <button
           @click="runDocumentAssistant('optimize')"
@@ -63,23 +109,34 @@
           :disabled="!currentIsMarkdown || isAssistantRunning || !assistantServiceReady"
           :title="assistantDisabledReason"
         >
-          {{ isAssistantRunning && assistantMode === 'optimize' ? '优化中...' : '优化当前文档' }}
+          {{ isAssistantRunning && assistantMode === 'optimize' ? t('improving') : t('improveDocument') }}
         </button>
+            </div>
+          </div>
+        </details>
         <button
           @click="openFolder"
           class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
           :disabled="isMarkdownTranslating || isFolderOpening"
         >
-          {{ isFolderOpening ? '打开中...' : '打开文件夹' }}
+          {{ isFolderOpening ? t('opening') : t('openFolder') }}
         </button>
       </div>
     </header>
+    <section v-if="showMcp && workspace.folderPath" class="p-4 bg-white border-b">
+      <p>将此配置加入 MCP 客户端。仅授权当前工作区，默认只读；服务访问磁盘文件，不读取未保存草稿。</p>
+      <label><input v-model="mcpWritable" type="checkbox" @change="loadMcpConfig" /> 允许客户端写入此工作区的已有文档（需匹配文件版本）</label>
+      <button class="ml-4" @click="loadMcpConfig">生成配置</button>
+      <pre class="text-xs whitespace-pre-wrap">{{ mcpConfig }}</pre>
+    </section>
+
 
     <div
-      v-if="workspaceError"
+      v-if="workspaceError || workspace.openError"
+      role="alert"
       class="px-4 py-2 text-sm border-b bg-red-50 text-red-600 border-red-100"
     >
-      {{ workspaceError }}
+      {{ workspaceError || workspace.openError }}
     </div>
 
     <div
@@ -100,17 +157,17 @@
 
     <section
       v-if="openAiConfigOpen"
-      aria-label="OpenAI 兼容模型配置"
+      :aria-label="t('modelSettingsTitle')"
       class="px-4 py-3 bg-white border-b border-gray-200"
     >
       <div class="max-w-4xl space-y-2">
         <div class="flex items-center justify-between">
-          <div class="text-sm font-medium text-gray-800">OpenAI 兼容模型配置</div>
-          <button class="text-xs text-gray-500 hover:text-gray-700" @click="openAiConfigOpen = false">关闭</button>
+          <div class="text-sm font-medium text-gray-800">{{ t('modelSettingsTitle') }}</div>
+          <button class="text-xs text-gray-500 hover:text-gray-700" @click="openAiConfigOpen = false">{{ t('close') }}</button>
         </div>
         <div class="grid gap-2 md:grid-cols-3">
           <label class="text-xs text-gray-600">
-            Base URL
+            {{ t('baseUrl') }}
             <input
               v-model.trim="openAiBaseUrl"
               @change="persistOpenAiSettings"
@@ -120,7 +177,7 @@
             />
           </label>
           <label class="text-xs text-gray-600">
-            模型
+            {{ t('model') }}
             <input
               v-model.trim="openAiModel"
               @change="persistOpenAiSettings"
@@ -131,7 +188,7 @@
             />
           </label>
           <label class="text-xs text-gray-600">
-            API Key
+            {{ t('apiKey') }}
             <input
               v-model="openAiApiKey"
               class="mt-1 w-full px-2 py-1 text-sm border border-gray-300 rounded"
@@ -150,44 +207,42 @@
             :disabled="!openAiConnectionConfigComplete"
             @click="saveOpenAiConfiguration"
           >
-            保存配置
+            {{ t('saveSettings') }}
           </button>
           <button
             class="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
             :disabled="!openAiConnectionConfigComplete || isTestingOpenAiConnection"
             @click="testOpenAiConnection"
           >
-            {{ isTestingOpenAiConnection ? '测试中...' : '测试连接' }}
+            {{ isTestingOpenAiConnection ? t('testing') : t('testConnection') }}
           </button>
           <button
             class="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
             :disabled="!openAiConnectionConfigComplete || isLoadingOpenAiModels"
             @click="loadOpenAiModels"
           >
-            {{ isLoadingOpenAiModels ? '拉取中...' : '拉取模型列表' }}
+            {{ isLoadingOpenAiModels ? t('loading') : t('loadModels') }}
           </button>
         </div>
         <p class="text-xs text-gray-500">
-          使用 OpenAI Chat Completions 兼容协议。DeepSeek 示例：Base URL 为 https://api.deepseek.com/v1，模型为 deepseek-chat。
-          “保存配置”会保存 Base URL 和模型；API Key 只保存在本次运行内，不写入磁盘。
+          {{ t('modelSettingsHelp') }}
         </p>
         <p v-if="openAiConfigError" class="text-xs text-red-600">{{ openAiConfigError }}</p>
         <p v-else-if="openAiConfigMessage" class="text-xs text-green-700">{{ openAiConfigMessage }}</p>
         <p v-if="translationService === 'openai-compatible' && !openAiConfigComplete" class="text-xs text-red-600">
-          请填写 Base URL、模型和 API Key 后再翻译。
+          {{ t('enterModelDetails') }}
         </p>
         <p v-if="permanentAssistantWritePermission" class="text-xs text-amber-700">
-          已授予永久修改权（{{ assistantWritePermissionScopeLabel }}）：每次模型读取仍会询问，但应用优化稿时不会再弹出二次写入确认。
-          <button class="underline" @click="setPermanentAssistantWritePermission(false)">撤销授权</button>
+          {{ t('permanentPermission', { scope: assistantWritePermissionScopeLabel }) }}
+          <button class="underline" @click="setPermanentAssistantWritePermission(false)">{{ t('revokePermission') }}</button>
         </p>
       </div>
     </section>
 
-    <!-- 主工作区 -->
     <main class="flex-1 flex overflow-hidden">
-      <!-- 左侧文件树 -->
       <aside
         v-if="workspace.folderPath"
+        v-show="!focusMode"
         class="w-64 bg-white border-r border-gray-200 overflow-auto"
       >
         <div class="p-2 border-b border-gray-200 space-y-2">
@@ -197,21 +252,21 @@
               :class="fileFilter === 'all' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'"
               @click="fileFilter = 'all'"
             >
-              全部
+              {{ t('allFiles') }}
             </button>
             <button
               class="px-2 py-1 text-xs rounded"
               :class="fileFilter === 'markdown' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'"
               @click="fileFilter = 'markdown'"
             >
-              只看 Markdown
+              {{ t('markdown') }}
             </button>
             <button
               class="px-2 py-1 text-xs rounded"
               :class="fileFilter === 'html' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'"
               @click="fileFilter = 'html'"
             >
-              只看 HTML
+              {{ t('html') }}
             </button>
           </div>
           <div class="flex gap-1">
@@ -220,13 +275,13 @@
               :disabled="!workspace.currentFile"
               @click="locateCurrentFile"
             >
-              定位当前文件
+              {{ t('locateCurrentFile') }}
             </button>
             <button
               class="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
               @click="toggleDisplayMode"
             >
-              {{ displayMode === 'filename' ? '显示标题' : '显示文档名' }}
+              {{ displayMode === 'filename' ? t('showTitles') : t('showFileNames') }}
             </button>
           </div>
           <button
@@ -234,7 +289,7 @@
             :disabled="!currentIsMarkdown"
             @click="outlineOpen = !outlineOpen"
           >
-            {{ outlineOpen && currentIsMarkdown ? '关闭标题大纲' : '打开标题大纲' }}
+            {{ outlineOpen && currentIsMarkdown ? t('hideOutline') : t('showOutline') }}
           </button>
         </div>
         <FileTree
@@ -249,50 +304,88 @@
       </aside>
 
       <aside
-        v-if="outlineOpen && currentIsMarkdown"
+        v-if="outlineOpen && currentIsMarkdown && !focusMode"
         class="w-56 bg-white border-r border-gray-200 overflow-hidden"
       >
         <DocumentOutline
           :content="workspace.currentFile?.content || ''"
+          :headings="documentHeadings"
           @select="handleOutlineSelect"
         />
       </aside>
 
-      <!-- 中间编辑区 -->
-      <section class="flex-1 flex flex-col">
-        <div v-if="!workspace.currentFile" class="flex-1 flex items-center justify-center text-gray-400">
-          <div class="text-center">
-            <p class="text-xl mb-2">欢迎使用 Markdown HTML Editor</p>
-            <p class="text-sm">点击"打开文件夹"开始编辑</p>
+      <section class="flex-1 min-w-0 min-h-0 flex flex-col">
+        <div v-if="workspace.openingPath" role="status" class="px-4 py-2 text-sm">Opening {{ workspace.openingPath.split('/').pop() }}…</div>
+        <div v-if="!workspace.folderPath" class="flex-1 overflow-auto bg-slate-50 p-6 sm:p-10">
+          <section class="mx-auto flex min-h-full max-w-4xl flex-col justify-center">
+            <p class="text-sm font-medium text-blue-700">MD+HTML Reader</p>
+            <h2 class="mt-2 max-w-3xl text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+              {{ t('onboardingTitle') }}
+            </h2>
+            <p class="mt-4 max-w-2xl text-base leading-7 text-slate-600">
+              {{ t('onboardingDescription') }}
+            </p>
+            <div class="mt-7 flex flex-wrap gap-3">
+              <button
+                class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                :disabled="isFolderOpening"
+                @click="openFolder"
+              >
+                {{ isFolderOpening ? t('openingFolder') : t('openDocumentFolder') }}
+              </button>
+              <button
+                class="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                @click="showGettingStarted = true"
+              >
+                {{ t('walkthrough') }}
+              </button>
+              <button
+                class="px-2 py-2 text-sm font-medium text-slate-600 underline underline-offset-4 hover:text-slate-900"
+                @click="showTrustInfo = true"
+              >
+                {{ t('privacyBetaNotes') }}
+              </button>
+            </div>
+            <ol class="mt-10 grid gap-3 text-sm text-slate-700 sm:grid-cols-3">
+              <li class="rounded-lg border border-slate-200 bg-white p-4"><span class="font-semibold text-blue-700">1.</span> {{ t('onboardingStepOne') }}</li>
+              <li class="rounded-lg border border-slate-200 bg-white p-4"><span class="font-semibold text-blue-700">2.</span> {{ t('onboardingStepTwo') }}</li>
+              <li class="rounded-lg border border-slate-200 bg-white p-4"><span class="font-semibold text-blue-700">3.</span> {{ t('onboardingStepThree') }}</li>
+            </ol>
+          </section>
+        </div>
+
+        <div v-else-if="!workspace.currentFile" class="flex-1 flex items-center justify-center p-6 text-gray-500">
+          <div class="max-w-sm text-center">
+            <p class="text-xl font-semibold text-gray-800">{{ t('chooseDocument') }}</p>
+            <p class="mt-2 text-sm">{{ t('chooseDocumentDescription') }}</p>
+            <button class="mt-4 text-sm font-medium text-blue-700 underline underline-offset-4" @click="showGettingStarted = true">{{ t('openQuickStart') }}</button>
           </div>
         </div>
 
-        <div v-else class="flex-1 overflow-hidden">
-          <HtmlRenderer
-            v-if="currentIsHtml"
-            :key="workspace.currentFile.path"
-            :file="workspace.currentFile"
-          />
-
-          <MilkdownEditor
-            v-else
-            ref="editorRef"
-            :key="workspace.currentFile.path"
-            :file="workspace.currentFile"
-            :save-content="saveFile"
-            @createComment="handleCreateComment"
-            @translate="handleTranslate"
-          />
+        <div v-else class="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <nav role="tablist" aria-label="文档标签" class="flex overflow-x-auto border-b bg-white shrink-0">
+            <div v-for="tab in workspace.tabs" :key="tab.path" class="flex items-center border-r px-3 py-2 gap-2 text-sm" :class="{ 'bg-blue-50': tab.path === workspace.currentFile?.path }">
+              <button role="tab" :aria-selected="tab.path === workspace.currentFile?.path" @click="openFile(tab.path)">{{ tab.path.split('/').pop() }}{{ tab.draft !== undefined && tab.draft !== tab.content ? ' ●' : '' }}</button>
+              <button :aria-label="'关闭 ' + tab.path.split('/').pop()" @click="closeTab(tab.path)">×</button>
+            </div>
+          </nav>
+          <div v-for="tab in workspace.tabs" v-show="tab.path === workspace.currentFile?.path" :data-active-document="tab.path === workspace.currentFile?.path" :key="tab.path" class="flex-1 min-h-0 overflow-hidden">
+            <HtmlRenderer v-if="/\.(html?|xhtml)$/i.test(tab.path)" :file="tab" />
+            <YamlEditor v-else-if="/\.yaml$/i.test(tab.path)" :ref="(el: any) => setTabEditor(tab.path, el)" :file="tab" :save-content="(content: string) => saveTabFile(tab.path, content)" />
+            <MarkdownDocument v-else :ref="(el: any) => setTabEditor(tab.path, el)" :file="tab" :save-content="(content: string) => saveTabFile(tab.path, content)"
+              @change="tab.draft = $event" @create-comment="handleCreateComment" @translate="handleTranslate"
+              @headings="tabHeadings.set(tab.path, $event); tab.path === workspace.currentFile?.path && (documentHeadings = $event)" @focus="focusMode = $event" />
+          </div>
         </div>
       </section>
 
-      <!-- 右侧评论栏 -->
       <aside
-        v-if="workspace.currentFile && comments.list.length > 0"
+        v-if="workspace.currentFile && comments.list.length > 0 && !focusMode"
         class="w-80 bg-white border-l border-gray-200 overflow-auto"
       >
         <CommentSidebar
           :comments="comments.list"
+          @locate="locateComment"
           @resolve="handleResolveComment"
           @delete="handleDeleteComment"
         />
@@ -337,11 +430,53 @@
       @apply="applyAssistantOptimization"
       @update:permanent-write-permission="setPermanentAssistantWritePermission"
     />
+
+    <div v-if="showGettingStarted" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-6" role="dialog" aria-modal="true" :aria-label="t('quickStartDialog')">
+      <section class="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-sm font-medium text-blue-700">{{ t('quickStartLabel') }}</p>
+            <h2 class="mt-1 text-xl font-semibold text-slate-900">{{ t('quickStartTitle') }}</h2>
+          </div>
+          <button class="text-sm text-slate-500 hover:text-slate-800" @click="showGettingStarted = false">{{ t('close') }}</button>
+        </div>
+        <ol class="mt-5 space-y-4 text-sm leading-6 text-slate-700">
+          <li><strong>1.</strong> {{ t('quickStartStepOne') }}</li>
+          <li><strong>2.</strong> {{ t('quickStartStepTwo') }}</li>
+          <li><strong>3.</strong> {{ t('quickStartStepThree') }}</li>
+        </ol>
+        <p class="mt-5 rounded-lg bg-blue-50 p-3 text-xs leading-5 text-blue-900">
+          {{ t('quickStartNote') }}
+        </p>
+        <div class="mt-6 flex flex-wrap justify-end gap-3">
+          <button class="text-sm font-medium text-slate-600 underline underline-offset-4" @click="showTrustInfo = true">{{ t('privacyBetaNotes') }}</button>
+          <button class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" @click="showGettingStarted = false; openFolder()">{{ t('openFolder') }}</button>
+        </div>
+      </section>
+    </div>
+
+    <div v-if="showTrustInfo" class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-6" role="dialog" aria-modal="true" :aria-label="t('privacyDialog')">
+      <section class="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-sm font-medium text-blue-700">{{ t('privacyLabel') }}</p>
+            <h2 class="mt-1 text-xl font-semibold text-slate-900">{{ t('privacyTitle') }}</h2>
+          </div>
+          <button class="text-sm text-slate-500 hover:text-slate-800" @click="showTrustInfo = false">{{ t('close') }}</button>
+        </div>
+        <div class="mt-5 space-y-4 text-sm leading-6 text-slate-700">
+          <p>{{ t('privacyLocal') }}</p>
+          <p>{{ t('privacyAi') }}</p>
+          <p>{{ t('privacyBeta') }}</p>
+        </div>
+        <button class="mt-6 rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700" @click="showTrustInfo = false">{{ t('gotIt') }}</button>
+      </section>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref, onMounted, onUnmounted } from 'vue'
+import { computed, defineAsyncComponent, ref, watch, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ask, open, save } from '@tauri-apps/plugin-dialog'
@@ -349,13 +484,17 @@ import { useWorkspaceStore } from './stores/workspace'
 import { useCommentsStore } from './stores/comments'
 import FileTree from './components/FileTree.vue'
 import HtmlRenderer from './components/HtmlRenderer.vue'
+import YamlEditor from './components/YamlEditor.vue'
 import CommentSidebar from './components/CommentSidebar.vue'
-import DocumentOutline from './components/DocumentOutline.vue'
+import type { OutlineHeading } from './lib/markdown/renderer'
+import './styles/markdown.css'
 import type { Selection } from './utils/selection'
+import { locale, setLocale, t, type AppLocale } from './i18n'
 
-const MilkdownEditor = defineAsyncComponent(() =>
-  import('./components/MilkdownEditor.vue').then(module => module.default)
+const MarkdownDocument = defineAsyncComponent(() =>
+  import('./components/MarkdownDocument.vue').then(module => module.default)
 )
+const DocumentOutline = defineAsyncComponent(() => import('./components/DocumentOutline.vue').then(module => module.default))
 const SearchPanel = defineAsyncComponent(() =>
   import('./components/SearchPanel.vue').then(module => module.default)
 )
@@ -372,11 +511,7 @@ type DisplayMode = 'filename' | 'title'
 type TranslationService = 'ollama' | 'tencent' | 'openai-compatible'
 type TranslationState = 'idle' | 'loading' | 'success' | 'error'
 type DocumentAssistantMode = 'suggestions' | 'optimize'
-interface OutlineHeading {
-  level: number
-  text: string
-  line: number
-}
+type HtmlGenerationMode = 'default' | 'ai-reading'
 interface TranslationResult {
   original: string
   translated: string
@@ -388,6 +523,10 @@ interface MarkdownTranslationResult {
   outputPath: string
   translatedCharacters: number
   translatedSegments: number
+}
+interface AiReadingHtmlResult {
+  outputPath: string
+  summaryCharacters: number
 }
 interface OpenAiCompatibleConfig {
   baseUrl: string
@@ -416,23 +555,31 @@ interface DocumentAssistantSession {
   permissionScope: AssistantWritePermissionScope
 }
 interface EditorHandle {
+  scrollToSource?: (start: number, length: number) => void
   requestDiscardChanges: (action: 'switch-file' | 'switch-workspace' | 'close-window') => Promise<boolean>
   saveCurrentContent: () => Promise<void>
   getCurrentContent: () => string
   replaceContent: (content: string) => Promise<void>
-  scrollToHeading: (text: string, level: number) => void
+  scrollToHeading: (text: string, level: number, line?: number) => void
 }
 
 const workspace = useWorkspaceStore()
 const comments = useCommentsStore()
+const showGettingStarted = ref(false)
+const showTrustInfo = ref(false)
 const showSearchPanel = ref(false)
 const searchMode = ref<SearchMode>('files')
 const fileFilter = ref<FileFilter>('all')
 const displayMode = ref<DisplayMode>('filename')
 const locateToken = ref(0)
 const outlineOpen = ref(false)
+const documentHeadings = ref<OutlineHeading[]>([])
+const focusMode = ref(false)
+watch(() => workspace.currentFile?.path, path => { documentHeadings.value = path ? tabHeadings.get(path) || [] : []; focusMode.value = false })
 const editorRef = ref<EditorHandle | null>(null)
 const translationService = ref<TranslationService>('ollama')
+const htmlGenerationMode = ref<HtmlGenerationMode>('default')
+const includeMarkdownSource = ref(false)
 const openAiConfigOpen = ref(false)
 const openAiBaseUrl = ref(readOpenAiSetting('baseUrl'))
 const openAiModel = ref(readOpenAiSetting('model'))
@@ -447,6 +594,11 @@ const translationOriginal = ref('')
 const translationTranslated = ref('')
 const translationError = ref<string | null>(null)
 const isExporting = ref(false)
+const showMcp = ref(false), mcpWritable = ref(false), mcpConfig = ref('')
+async function loadMcpConfig() {
+  try { mcpConfig.value = JSON.stringify(await invoke('mcp_configuration', { workspacePath: workspace.folderPath, allowWrite: mcpWritable.value }), null, 2) }
+  catch (error) { mcpConfig.value = String(error) }
+}
 const exportMessage = ref<string | null>(null)
 const isMarkdownTranslating = ref(false)
 const markdownTranslationMessage = ref<string | null>(null)
@@ -473,6 +625,9 @@ const currentIsHtml = computed(() => {
   const path = workspace.currentFile?.path.toLowerCase() || ''
   return path.endsWith('.html') || path.endsWith('.htm') || path.endsWith('.xhtml')
 })
+const currentIsYaml = computed(() => {
+  return workspace.currentFile?.path.toLowerCase().endsWith('.yaml') || false
+})
 const openAiConfigComplete = computed(() => {
   return Boolean(openAiBaseUrl.value.trim() && openAiModel.value.trim() && openAiApiKey.value.trim())
 })
@@ -484,11 +639,11 @@ const assistantServiceReady = computed(() => {
     && (translationService.value !== 'openai-compatible' || openAiConfigComplete.value)
 })
 const assistantDisabledReason = computed(() => {
-  if (translationService.value === 'tencent') return 'AI 助手仅支持 Ollama 或 OpenAI 兼容服务'
+  if (translationService.value === 'tencent') return t('aiAssistantTencent')
   if (translationService.value === 'openai-compatible' && !openAiConfigComplete.value) {
-    return '请先填写 OpenAI 兼容服务的 Base URL、模型和 API Key'
+    return t('enterModelFirst')
   }
-  if (!currentIsMarkdown.value) return '仅支持当前打开的 Markdown 文件'
+  if (!currentIsMarkdown.value) return t('requiresMarkdown')
   return ''
 })
 const assistantWritePermissionScope = computed<AssistantWritePermissionScope | null>(() => {
@@ -514,14 +669,19 @@ const assistantWritePermissionScopeLabel = computed(() => {
   return describeAssistantWritePermissionScope(assistantWritePermissionScope.value)
 })
 
+function changeLocale(event: Event) {
+  const value = (event.target as HTMLSelectElement).value
+  setLocale(value === 'zh-CN' ? 'zh-CN' : 'en' as AppLocale)
+}
+
 function describeAssistantWritePermissionScope(scope: AssistantWritePermissionScope | null) {
-  if (!scope) return '当前文件与模型'
+  if (!scope) return t('thisDocumentModel')
   const fileName = scope.filePath.split('/').pop() || scope.filePath
   const modelName = scope.model.split('|').slice(-1)[0] || ''
   const serviceName = scope.service === 'openai-compatible'
-    ? `OpenAI 兼容模型 ${modelName}`
-    : 'Ollama 默认模型'
-  return `文件 ${fileName}，${serviceName}`
+    ? t('openAiModel', { model: modelName })
+    : t('defaultOllamaModel')
+  return t('scopeLabel', { file: fileName, service: serviceName })
 }
 
 function readOpenAiSetting(name: 'baseUrl' | 'model') {
@@ -543,7 +703,7 @@ function persistOpenAiSettings() {
       else window.localStorage.removeItem(key)
     }
   } catch {
-    // 浏览器存储不可用时仍保留当前运行内的配置。
+    // Keep settings for this session when browser storage is unavailable.
   }
 }
 
@@ -551,7 +711,7 @@ function openAiConnectionPayload() {
   const baseUrl = openAiBaseUrl.value.trim()
   const apiKey = openAiApiKey.value.trim()
   if (!baseUrl || !apiKey) {
-    throw new Error('请先填写 Base URL 和 API Key')
+    throw new Error(t('enterBaseUrlApiKey'))
   }
   return { baseUrl, apiKey }
 }
@@ -561,7 +721,7 @@ function saveOpenAiConfiguration() {
     openAiConnectionPayload()
     persistOpenAiSettings()
     openAiConfigError.value = null
-    openAiConfigMessage.value = '配置已保存；API Key 仅保留在本次运行内'
+    openAiConfigMessage.value = t('settingsSaved')
   } catch (error) {
     openAiConfigMessage.value = null
     openAiConfigError.value = error instanceof Error ? error.message : String(error)
@@ -576,9 +736,11 @@ async function testOpenAiConnection() {
     openAiConfigMessage.value = null
     const result = await invoke<{ modelCount: number }>('test_openai_compatible_connection', {
       baseUrl,
+      model: openAiModel.value.trim(),
       apiKey,
+      verifyChat: false,
     })
-    openAiConfigMessage.value = `连接成功，可获取 ${result.modelCount} 个模型`
+    openAiConfigMessage.value = t('connectedModels', { count: result.modelCount })
   } catch (error) {
     openAiConfigError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -599,8 +761,8 @@ async function loadOpenAiModels() {
       persistOpenAiSettings()
     }
     openAiConfigMessage.value = models.length
-      ? `已加载 ${models.length} 个模型，可在“模型”输入框中选择或输入自定义名称`
-      : '连接成功，但服务未返回可用模型'
+      ? t('modelsLoaded', { count: models.length })
+      : t('noModels')
   } catch (error) {
     openAiConfigError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -633,7 +795,7 @@ function setPermanentAssistantWritePermission(granted: boolean) {
     if (granted) window.localStorage.setItem(key, 'true')
     else window.localStorage.removeItem(key)
   } catch {
-    // 浏览器存储不可用时仍在当前运行内保留授权状态。
+    // Keep permission for this session when browser storage is unavailable.
   }
   assistantPermissionVersion.value += 1
 }
@@ -663,34 +825,58 @@ async function openFolder() {
       : await open({
           directory: true,
           multiple: false,
-          title: '选择工作区文件夹',
+          title: t('chooseWorkspaceFolder'),
           defaultPath: workspace.folderPath || undefined,
         })
 
     const selectedPath = Array.isArray(selected) ? selected[0] : selected
     if (!selectedPath) return
 
-    if (editorRef.value && !(await editorRef.value.requestDiscardChanges('switch-workspace'))) return
+    if (!(await protectTabs('switch-workspace'))) return
     if (!(await workspace.loadFolder(selectedPath))) {
-      throw new Error('无法读取所选文件夹，请检查访问权限后重试')
+      throw new Error(t('folderReadError'))
     }
     comments.clearCurrentFile()
   } catch (error) {
-    console.error('打开文件夹失败:', error)
+    console.error('Failed to open folder:', error)
     const message = error instanceof Error ? error.message : String(error)
-    workspaceError.value = `打开文件夹失败：${message}`
+    workspaceError.value = t('couldNotOpenFolder', { message })
   } finally {
     isFolderOpening.value = false
   }
+}
+
+const tabEditors = new Map<string, NonNullable<typeof editorRef.value>>()
+const tabHeadings = new Map<string, OutlineHeading[]>()
+function setTabEditor(path: string, editor: NonNullable<typeof editorRef.value> | null) {
+  if (editor) tabEditors.set(path, editor)
+  else { tabEditors.delete(path); tabHeadings.delete(path) }
+  if (workspace.currentFile?.path === path) editorRef.value = editor
+}
+async function protectTabs(action: 'switch-workspace' | 'close-window') {
+  for (const editor of tabEditors.values()) if (!(await editor.requestDiscardChanges(action))) return false
+  return true
+}
+async function closeTab(path: string) {
+  if (isMarkdownTranslating.value) return
+  const editor = tabEditors.get(path)
+  if (editor && !(await editor.requestDiscardChanges('switch-file'))) return
+  workspace.closeTab(path); tabEditors.delete(path); tabHeadings.delete(path)
+  const current = workspace.currentFile
+  editorRef.value = current ? tabEditors.get(current.path) || null : null
+  documentHeadings.value = current ? tabHeadings.get(current.path) || [] : []
+  if (current && workspace.folderPath) await comments.loadComments(workspace.folderPath, current.path, current.content)
+  else comments.clearCurrentFile()
 }
 
 async function openFile(filePath: string) {
   if (isMarkdownTranslating.value) return
   if (!workspace.folderPath) return
   if (workspace.currentFile?.path === filePath) return
-  if (editorRef.value && !(await editorRef.value.requestDiscardChanges('switch-file'))) return
 
   if (!(await workspace.openFile(filePath))) return
+  editorRef.value = tabEditors.get(filePath) || null
+  documentHeadings.value = tabHeadings.get(filePath) || []
   await comments.loadComments(workspace.folderPath, filePath, workspace.currentFile?.content)
 }
 
@@ -715,26 +901,60 @@ function toggleDisplayMode() {
   displayMode.value = displayMode.value === 'filename' ? 'title' : 'filename'
 }
 
+function locateComment(id: string) {
+  const comment = comments.list.find(item => item.id === id)
+  if (comment) editorRef.value?.scrollToSource?.(comment.anchor.offset, comment.anchor.length)
+}
 function handleOutlineSelect(heading: OutlineHeading) {
-  editorRef.value?.scrollToHeading?.(heading.text, heading.level)
+  editorRef.value?.scrollToHeading?.(heading.text, heading.level, heading.line)
 }
 
-async function saveFile(content: string) {
-  const filePath = workspace.currentFile?.path
+async function saveTabFile(filePath: string, content: string) {
   const folderPath = workspace.folderPath
-  await workspace.saveCurrentFile(content)
+  await workspace.saveFile(filePath, content)
   if (folderPath && filePath && workspace.folderPath === folderPath && workspace.currentFile?.path === filePath) {
     await comments.refreshCurrentFileHash(folderPath, filePath)
   }
 }
 
+async function saveMarkdownBeforeHtmlGeneration(sourcePath: string) {
+  if (editorRef.value?.saveCurrentContent) {
+    await editorRef.value.saveCurrentContent()
+  }
+  if (workspace.currentFile?.path !== sourcePath) {
+    throw new Error(t('currentFileChanged'))
+  }
+}
+
+async function openGeneratedHtml(workspacePath: string, outputPath: string) {
+  if (!(await workspace.refreshFiles())) {
+    throw new Error(t('refreshFiles'))
+  }
+  comments.clearCurrentFile()
+  if (!(await workspace.openFile(outputPath))) {
+    throw new Error(t('couldNotOpenHtml'))
+  }
+}
+
+async function generateHtml() {
+  if (htmlGenerationMode.value === 'ai-reading') {
+    await generateAiReadingHtml()
+    return
+  }
+  await exportHtml()
+}
+
 async function exportHtml() {
-  if (!workspace.folderPath || !workspace.currentFile) return
+  const workspacePath = workspace.folderPath
+  const sourceFile = workspace.currentFile
+  const sourceEditor = editorRef.value
+  if (!workspacePath || !sourceFile || !currentIsMarkdown.value) return
 
   isExporting.value = true
   exportMessage.value = null
   try {
-    const defaultPath = workspace.currentFile.path.replace(/\.[^/.]+$/, '.html')
+    await saveMarkdownBeforeHtmlGeneration(sourceFile.path)
+    const defaultPath = sourceFile.path.replace(/\.[^/.]+$/, '.html')
     const outputPath = isE2E
       ? e2eExportPath
       : await save({
@@ -744,19 +964,58 @@ async function exportHtml() {
 
     if (!outputPath || typeof outputPath !== 'string') return
 
-    await invoke('export_as_html', {
-      workspacePath: workspace.folderPath,
-      filePath: workspace.currentFile.path,
-      outputPath,
-      cssContent: null,
-    })
-    exportMessage.value = 'HTML 已导出'
+    await sourceEditor?.saveCurrentContent()
+    const sourceContent = sourceEditor?.getCurrentContent() ?? sourceFile.content
+
+    const { exportMarkdown } = await import('./lib/markdown/export')
+    const html = await exportMarkdown(sourceContent, sourceFile.path, workspacePath, includeMarkdownSource.value)
+    await invoke('export_rendered_html', { workspacePath, outputPath, html })
+    await openGeneratedHtml(workspacePath, outputPath)
+    exportMessage.value = t('htmlCreated')
   } catch (error) {
-    console.error('导出 HTML 失败:', error)
+    console.error('Failed to export HTML:', error)
     const message = error instanceof Error ? error.message : String(error)
     exportMessage.value = message.includes('路径不在已授权工作区内')
-      ? '导出位置必须位于当前工作区内'
-      : `HTML 导出失败：${message}`
+      ? t('exportLocationWorkspace')
+      : t('htmlExportFailed', { message })
+  } finally {
+    isExporting.value = false
+  }
+}
+
+async function generateAiReadingHtml() {
+  const workspacePath = workspace.folderPath
+  const sourceFile = workspace.currentFile
+  if (!workspacePath || !sourceFile || !currentIsMarkdown.value || !assistantServiceReady.value) return
+
+  const approved = await ask(
+    t('aiReadingConfirm', {
+      file: sourceFile.path.split('/').pop() || sourceFile.path,
+      count: editorRef.value?.getCurrentContent().length || sourceFile.content.length,
+      markdown: includeMarkdownSource.value ? t('aiReadingIncludesMarkdown') : '',
+    }),
+    { title: t('allowAiReading'), kind: 'warning' },
+  )
+  if (!approved) return
+
+  isExporting.value = true
+  exportMessage.value = null
+  try {
+    await saveMarkdownBeforeHtmlGeneration(sourceFile.path)
+    const openaiConfig = openAiConfigPayload()
+    const result = await invoke<AiReadingHtmlResult>('generate_ai_reading_html', {
+      service: translationService.value,
+      workspacePath,
+      filePath: sourceFile.path,
+      includeMarkdownSource: includeMarkdownSource.value,
+      ...(openaiConfig ? { openaiConfig } : {}),
+    })
+    await openGeneratedHtml(workspacePath, result.outputPath)
+    exportMessage.value = t('aiReadingCreated', { count: result.summaryCharacters })
+  } catch (error) {
+    console.error('Failed to create AI reading version:', error)
+    const message = error instanceof Error ? error.message : String(error)
+    exportMessage.value = t('aiReadingFailed', { message })
   } finally {
     isExporting.value = false
   }
@@ -774,7 +1033,7 @@ async function translateMarkdownFile() {
 
   try {
     if (!editorRef.value) {
-      throw new Error('编辑器尚未就绪，请稍后重试')
+      throw new Error(t('editorNotReady'))
     }
     await editorRef.value.saveCurrentContent()
     const openaiConfig = openAiConfigPayload()
@@ -785,12 +1044,12 @@ async function translateMarkdownFile() {
       ...(openaiConfig ? { openaiConfig } : {}),
     })
 
-    if (!(await workspace.loadFolder(workspacePath))) {
-      throw new Error('刷新文件列表失败')
+    if (!(await workspace.refreshFiles())) {
+      throw new Error(t('refreshFiles'))
     }
     comments.clearCurrentFile()
     if (!(await workspace.openFile(result.outputPath))) {
-      throw new Error('打开中文翻译副本失败')
+      throw new Error(t('couldNotOpenChineseCopy'))
     }
     await comments.loadComments(
       workspacePath,
@@ -799,9 +1058,9 @@ async function translateMarkdownFile() {
     )
 
     const outputName = result.outputPath.split('/').pop() || result.outputPath
-    markdownTranslationMessage.value = `已生成中文翻译副本：${outputName}`
+    markdownTranslationMessage.value = t('chineseCopyCreated', { name: outputName })
   } catch (error) {
-    console.error('生成中文翻译副本失败:', error)
+    console.error('Failed to create Chinese translation copy:', error)
     markdownTranslationError.value = error instanceof Error ? error.message : String(error)
   } finally {
     isMarkdownTranslating.value = false
@@ -819,9 +1078,9 @@ async function handleCreateComment(anchor: any, content: string) {
       status: 'open',
     })
 
-    console.log('评论创建成功')
+    console.log('Comment created')
   } catch (error) {
-    console.error('创建评论失败:', error)
+    console.error('Failed to create comment:', error)
   }
 }
 
@@ -842,7 +1101,7 @@ async function handleTranslate(selection: Selection) {
     translationTranslated.value = result.translated
     translationState.value = 'success'
   } catch (error) {
-    console.error('翻译失败:', error)
+    console.error('Translation failed:', error)
     translationError.value = error instanceof Error ? error.message : String(error)
     translationState.value = 'error'
   }
@@ -866,10 +1125,15 @@ async function runDocumentAssistant(mode: DocumentAssistantMode) {
   const permissionScope = assistantWritePermissionScope.value
   if (!permissionScope) return
 
-  const actionLabel = mode === 'suggestions' ? '根据评论提出建议' : '优化当前文档'
+  const actionLabel = mode === 'suggestions' ? t('suggestImprovements') : t('improveCurrentDocument')
   const approved = await ask(
-    `将向当前模型发送“${sourceFile.path.split('/').pop() || sourceFile.path}”的完整 Markdown（${editorRef.value?.getCurrentContent().length || sourceFile.content.length} 字符）和该文件的 ${assistantComments.length} 条未解决评论，用于${actionLabel}。不会发送整个工作区，也不会自动写入文件。是否继续？`,
-    { title: 'AI 读取授权', kind: 'warning' },
+    t('assistantConfirm', {
+      file: sourceFile.path.split('/').pop() || sourceFile.path,
+      count: editorRef.value?.getCurrentContent().length || sourceFile.content.length,
+      comments: assistantComments.length,
+      action: actionLabel,
+    }),
+    { title: t('allowAiAccess'), kind: 'warning' },
   )
   if (!approved) return
 
@@ -879,12 +1143,12 @@ async function runDocumentAssistant(mode: DocumentAssistantMode) {
   assistantError.value = null
   assistantResult.value = null
   try {
-    if (!editorRef.value) throw new Error('编辑器尚未就绪，请稍后重试')
+    if (!editorRef.value) throw new Error(t('editorNotReady'))
     await editorRef.value.saveCurrentContent()
 
     const currentFile = workspace.currentFile
     if (!currentFile || currentFile.path !== sourceFile.path) {
-      throw new Error('当前文件已切换，请重新发起 AI 操作')
+      throw new Error(t('currentFileChangedStartAgain'))
     }
     const sourceContent = editorRef.value.getCurrentContent()
     const openaiConfig = openAiConfigPayload()
@@ -906,7 +1170,7 @@ async function runDocumentAssistant(mode: DocumentAssistantMode) {
       permissionScope,
     }
   } catch (error) {
-    console.error('AI 文档处理失败:', error)
+    console.error('AI document action failed:', error)
     assistantError.value = error instanceof Error ? error.message : String(error)
   } finally {
     isAssistantRunning.value = false
@@ -918,11 +1182,11 @@ async function applyAssistantOptimization() {
   const result = assistantResult.value
   if (!result || result.mode !== 'optimize' || isAssistantApplying.value) return
   if (!editorRef.value || workspace.currentFile?.path !== result.sourcePath) {
-    assistantError.value = '当前文件已切换，不能应用这份优化稿'
+    assistantError.value = t('draftCannotApply')
     return
   }
   if (editorRef.value.getCurrentContent() !== result.sourceContent) {
-    assistantError.value = '文档在 AI 处理期间已被修改，请重新生成优化稿以避免覆盖更改'
+    assistantError.value = t('documentChangedDraft')
     return
   }
 
@@ -931,14 +1195,14 @@ async function applyAssistantOptimization() {
     !currentPermissionScope
     || assistantWritePermissionKey(currentPermissionScope) !== assistantWritePermissionKey(result.permissionScope)
   ) {
-    assistantError.value = '模型服务或文件已变更，请重新生成优化稿后再应用'
+    assistantError.value = t('serviceFileChanged')
     return
   }
 
   if (!permanentAssistantWritePermission.value) {
     const approved = await ask(
-      '即将把预览中的优化稿写入当前文件。该操作会覆盖当前文档内容，是否确认应用？',
-      { title: '确认写入优化稿', kind: 'warning' },
+      t('applyDraftConfirm'),
+      { title: t('confirmApply'), kind: 'warning' },
     )
     if (!approved) return
   }
@@ -955,9 +1219,9 @@ async function applyAssistantOptimization() {
       )
     }
     assistantResult.value = null
-    assistantMessage.value = '已应用优化稿并保存当前文档'
+    assistantMessage.value = t('aiDraftApplied')
   } catch (error) {
-    console.error('应用优化稿失败:', error)
+    console.error('Failed to apply AI draft:', error)
     assistantError.value = error instanceof Error ? error.message : String(error)
   } finally {
     isAssistantApplying.value = false
@@ -965,10 +1229,13 @@ async function applyAssistantOptimization() {
 }
 
 async function handleResolveComment(commentId: string) {
+  workspaceError.value = null
   try {
     await comments.updateCommentStatus(commentId, 'resolved')
   } catch (error) {
-    console.error('解决评论失败:', error)
+    console.error('Failed to resolve comment:', error)
+    const message = error instanceof Error ? error.message : String(error)
+    workspaceError.value = t('couldNotResolveComment', { message })
   }
 }
 
@@ -976,7 +1243,7 @@ async function handleDeleteComment(commentId: string) {
   try {
     await comments.deleteComment(commentId)
   } catch (error) {
-    console.error('删除评论失败:', error)
+    console.error('Failed to delete comment:', error)
   }
 }
 
@@ -998,7 +1265,7 @@ function handleKeyDown(event: KeyboardEvent) {
 onMounted(async () => {
   window.addEventListener('keydown', handleKeyDown)
   const unlisten = await getCurrentWindow().onCloseRequested(async (event) => {
-    if (editorRef.value && !(await editorRef.value.requestDiscardChanges('close-window'))) {
+    if (!(await protectTabs('close-window'))) {
       event.preventDefault()
     }
   })

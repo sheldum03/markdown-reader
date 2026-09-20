@@ -7,7 +7,7 @@
       </span>
 
       <div class="flex gap-2 items-center">
-        <span v-if="isSaving" class="text-xs text-gray-400">保存中...</span>
+        <span v-if="isSaving" class="text-xs text-gray-400">{{ t('saving') }}</span>
         <span v-else-if="saveError" class="text-xs text-red-500">
           {{ saveError }}
         </span>
@@ -20,16 +20,18 @@
           class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
           :disabled="isSaving"
         >
-          保存 (⌘S)
+          {{ t('save') }}
         </button>
       </div>
     </div>
 
     <!-- Milkdown 编辑器容器 -->
     <div class="flex-1 overflow-auto bg-white relative">
+      <p v-if="initializationError" role="alert" class="p-4 text-sm text-red-600">{{ initializationError }}</p>
+      <p v-else-if="!editor" role="status" class="p-4 text-sm text-gray-500">正在准备编辑器…</p>
       <div
         ref="editorRef"
-        class="milkdown-container"
+        class="milkdown-container markdown-body"
       />
 
       <!-- 评论工具提示 -->
@@ -45,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, shallowRef, onMounted, onUnmounted, computed } from 'vue'
 import { Editor, rootCtx, defaultValueCtx, editorViewCtx, parserCtx } from '@milkdown/core'
 import { commonmark } from '@milkdown/preset-commonmark'
 import { gfm } from '@milkdown/preset-gfm'
@@ -58,6 +60,9 @@ import { ask } from '@tauri-apps/plugin-dialog'
 import CommentTooltip from './CommentTooltip.vue'
 import { onSelectionChange, type Selection } from '../utils/selection'
 import { createAnchor } from '../utils/comment-anchor'
+import { mapDomSelection } from '../lib/markdown/sourceMap'
+import { prepareMarkdown } from '../lib/markdown/renderer'
+import { t } from '../i18n'
 
 const props = defineProps<{
   file: { path: string; content: string }
@@ -65,12 +70,14 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
+  change: [content: string]
   createComment: [anchor: any, content: string]
   translate: [selection: Selection]
 }>()
 
 const editorRef = ref<HTMLElement | null>(null)
-const editor = ref<Editor | null>(null)
+const editor = shallowRef<Editor | null>(null)
+const initializationError = ref('')
 const currentContent = ref(props.file.content)
 const isSaving = ref(false)
 const lastSaved = ref<number | null>(null)
@@ -78,6 +85,7 @@ const saveError = ref<string | null>(null)
 const autoSaveTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const isE2E = import.meta.env.MODE === 'e2e'
 let activeSave: Promise<void> | null = null
+let disposed = false
 
 type DiscardAction = 'switch-file' | 'switch-workspace' | 'close-window'
 
@@ -93,9 +101,9 @@ const fileName = computed(() => {
 const lastSavedText = computed(() => {
   if (!lastSaved.value) return ''
   const seconds = Math.floor((Date.now() - lastSaved.value) / 1000)
-  if (seconds < 5) return '刚刚保存'
-  if (seconds < 60) return `${seconds}秒前保存`
-  return `${Math.floor(seconds / 60)}分钟前保存`
+  if (seconds < 5) return t('savedJustNow')
+  if (seconds < 60) return t('savedSecondsAgo', { count: seconds })
+  return t('savedMinutesAgo', { count: Math.floor(seconds / 60) })
 })
 
 // 初始化 Milkdown 编辑器
@@ -103,15 +111,18 @@ onMounted(async () => {
   if (!editorRef.value) return
 
   try {
-    editor.value = await Editor.make()
+    const created = await Editor.make()
       .config((ctx) => {
         ctx.set(rootCtx, editorRef.value)
         ctx.set(defaultValueCtx, props.file.content)
 
         // 监听内容变化
         ctx.get(listenerCtx).markdownUpdated((ctx, markdown) => {
+          if (disposed || !editor.value || markdown === currentContent.value) return
           currentContent.value = markdown
+          emit('change', markdown)
           scheduleAutoSave()
+          requestAnimationFrame(mapSourceBlocks)
         })
       })
       // .use(nord)  // 与 Tailwind 冲突，暂时禁用
@@ -122,17 +133,24 @@ onMounted(async () => {
       .use(prism)
       .create()
 
+    if (disposed) { await created.destroy(); return }
+    editor.value = created
+
     // 初始化文本选择监听
+    mapSourceBlocks()
     setupSelectionListener()
     setupE2EHelpers()
 
   } catch (error) {
+    if (disposed) return
+    initializationError.value = '编辑器初始化失败，请重新打开文件。'
     console.error('初始化编辑器失败:', error)
   }
 })
 
 // 清理编辑器和所有事件监听器
 onUnmounted(() => {
+  disposed = true
   if (autoSaveTimer.value) {
     clearTimeout(autoSaveTimer.value)
   }
@@ -146,8 +164,15 @@ onUnmounted(() => {
 })
 
 // 设置文本选择监听
+function mapSourceBlocks() {
+  const nodes = editorRef.value?.querySelector('.ProseMirror')?.children
+  if (!nodes) return
+  const document = prepareMarkdown(currentContent.value)
+  Array.from(nodes).forEach((node, index) => { const block = document.blocks[index]; if (block) node.setAttribute('data-source-line', String(block.line)) })
+}
 function setupSelectionListener() {
   cleanupSelection = onSelectionChange((selection) => {
+    selection = editorRef.value ? mapDomSelection(editorRef.value, currentContent.value) : null
     currentSelection.value = selection
 
     // 只有选中了文本才显示工具提示
@@ -167,6 +192,7 @@ function setupE2EHelpers() {
   ;(window as any).__markdownHtmlE2E = {
     setEditorContent(content: string) {
       currentContent.value = content
+      emit('change', content)
       const editable = editorRef.value?.querySelector<HTMLElement>('.ProseMirror, [contenteditable="true"]')
       if (editable) {
         editable.textContent = content
@@ -192,10 +218,10 @@ function handleTranslate(selection: Selection) {
   hideCommentTooltip()
 }
 
-function scrollToHeading(text: string, level: number) {
+function scrollToHeading(text: string, level: number, line?: number) {
   const selector = `h${level}`
   const headings = Array.from(editorRef.value?.querySelectorAll<HTMLElement>(selector) || [])
-  const target = headings.find(heading => heading.textContent?.trim() === text)
+  const target = headings.find(heading => line ? Number(heading.dataset.sourceLine) === line : heading.textContent?.trim() === text)
 
   if (target) {
     target.scrollIntoView?.({ block: 'start' })
@@ -216,9 +242,9 @@ async function requestDiscardChanges(action: DiscardAction) {
   if (currentContent.value === props.file.content) return true
 
   const messages: Record<DiscardAction, string> = {
-    'switch-file': '当前文件有未保存的更改，切换文件会丢失这些更改。是否继续？',
-    'switch-workspace': '当前文件有未保存的更改，切换工作区会丢失这些更改。是否继续？',
-    'close-window': '当前文件有未保存的更改，关闭应用会丢失这些更改。是否继续？',
+    'switch-file': t('discardFile'),
+    'switch-workspace': t('discardWorkspace'),
+    'close-window': t('discardWindow'),
   }
   const hadPendingAutoSave = autoSaveTimer.value !== null
   if (autoSaveTimer.value) {
@@ -227,7 +253,7 @@ async function requestDiscardChanges(action: DiscardAction) {
   }
   const shouldDiscard = isE2E
     ? confirm(messages[action])
-    : await ask(messages[action], { title: '未保存的更改', kind: 'warning' })
+    : await ask(messages[action], { title: t('unsavedChanges'), kind: 'warning' })
 
   if (!shouldDiscard && hadPendingAutoSave) scheduleAutoSave()
 
@@ -289,16 +315,17 @@ async function replaceContent(content: string) {
   }
   if (activeSave) await activeSave
 
-  if (!editor.value) throw new Error('编辑器尚未就绪，无法应用优化稿')
+  if (!editor.value) throw new Error(t('aiDraftApplyError'))
 
-  editor.value.action(ctx => {
+  await editor.value.action(ctx => {
     const document = ctx.get(parserCtx)(content)
-    if (!document) throw new Error('无法加载优化后的 Markdown')
+    if (!document) throw new Error(t('couldNotLoadMarkdown'))
 
     const view = ctx.get(editorViewCtx)
     view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, document.content))
   })
   currentContent.value = content
+  emit('change', content)
   await save()
 }
 
@@ -314,8 +341,8 @@ function save(): Promise<void> {
       lastSaved.value = Date.now()
     })
     .catch((error) => {
-      console.error('保存失败:', error)
-      saveError.value = '保存失败'
+      console.error('Save failed:', error)
+      saveError.value = t('saveFailed')
       throw error
     })
     .finally(() => {
@@ -330,7 +357,7 @@ function save(): Promise<void> {
 onMounted(() => {
   const handleKeyDown = (e: KeyboardEvent) => {
     // Cmd+S / Ctrl+S 保存
-    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+    if (editorRef.value?.getClientRects().length && (e.metaKey || e.ctrlKey) && e.key === 's') {
       e.preventDefault()
       manualSave()
     }
