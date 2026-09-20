@@ -1,3 +1,4 @@
+import { createServer } from 'node:http'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
@@ -16,6 +17,31 @@ function buttonContaining(text: string) {
   return $(`//button[contains(normalize-space(.), "${text}")]`)
 }
 
+async function withOpenAiCompatibleModelServer<T>(
+  run: (baseUrl: string) => Promise<T>
+): Promise<T> {
+  const server = createServer((request, response) => {
+    expect(request.url).toBe('/v1/models')
+    expect(request.headers.authorization).toBe('Bearer e2e-api-key')
+    response.writeHead(200, { 'content-type': 'application/json' })
+    response.end('{"data":[{"id":"e2e-model"}]}')
+  })
+
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Expected a TCP address')
+
+  try {
+    return await run(`http://127.0.0.1:${address.port}/v1`)
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+  }
+}
+
 async function waitForBodyText(text: string) {
   await browser.waitUntil(
     async () => (await $('body').getText()).includes(text),
@@ -24,8 +50,11 @@ async function waitForBodyText(text: string) {
 }
 
 async function setEditorContent(text: string, expectedText = 'Edited keyword') {
+  const edit = $('//*[@data-active-document="true"]//button[normalize-space(.)="编辑"]')
+  if (await edit.getAttribute('aria-pressed') !== 'true') await edit.click()
+  await browser.waitUntil(async () => browser.execute(() => !!(window as any).__markdownHtmlE2E))
   const updated = await browser.execute((content) => {
-    const helpers = (window as any).__markdownHtmlE2E
+    const helpers = (document.querySelector('[data-active-document="true"] .cm-editor')?.parentElement as any)?.__editor || (window as any).__markdownHtmlE2E
     if (!helpers) return false
     helpers.setEditorContent(content)
     return true
@@ -37,32 +66,9 @@ async function setEditorContent(text: string, expectedText = 'Edited keyword') {
 
 async function selectEditorText(text: string) {
   const selected = await browser.execute((target) => {
-    const root = document.querySelector('.milkdown-container')
-    if (!root) return false
-
-    const editor = root.querySelector<HTMLElement>('.ProseMirror, [contenteditable="true"]')
-    editor?.focus()
-
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-    let node: Node | null
-    while ((node = walker.nextNode())) {
-      const index = node.textContent?.indexOf(target) ?? -1
-      if (index >= 0) {
-        const range = document.createRange()
-        range.setStart(node, index)
-        range.setEnd(node, index + target.length)
-
-        const selection = window.getSelection()
-        selection?.removeAllRanges()
-        selection?.addRange(range)
-        document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
-        return true
-      }
-    }
-
-    return false
+    const helpers = (document.querySelector('[data-active-document="true"] .cm-editor')?.parentElement as any)?.__editor
+    return helpers?.selectText(target) || false
   }, text)
-
   expect(selected).toBe(true)
   await waitForBodyText('Add comment')
 }
@@ -89,7 +95,9 @@ async function waitForPreviewWindow(mainWindow: string) {
 }
 
 describe('MD+HTML Reader Tauri window', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await browser.execute(() => localStorage.setItem('md-html-reader.locale', 'en'))
+    await browser.refresh()
     rmSync(workspacePath, { recursive: true, force: true })
     mkdirSync(workspacePath, { recursive: true })
     writeFileSync(
@@ -123,6 +131,21 @@ describe('MD+HTML Reader Tauri window', () => {
 
     const hasTauri = await browser.execute(() => '__TAURI__' in window)
     expect(hasTauri).toBe(true)
+  })
+
+  it('accepts the OpenAI-compatible connection-test payload over Tauri IPC', async () => {
+    const result = await withOpenAiCompatibleModelServer(async baseUrl => {
+      return browser.execute(async (url) => {
+        return await (window as any).__TAURI__.core.invoke('test_openai_compatible_connection', {
+          baseUrl: url,
+          model: 'e2e-model',
+          apiKey: 'e2e-api-key',
+          verifyChat: false,
+        })
+      }, baseUrl)
+    })
+
+    expect(result).toEqual({ modelCount: 1, chatVerified: false })
   })
 
   it('validates the core file, edit, comment, search, and export flow', async () => {
@@ -279,7 +302,57 @@ describe('MD+HTML Reader Tauri window', () => {
     }
   })
 
-  it('protects unsaved content during file and workspace switches', async () => {
+  it('renders math and diagrams, comments in reading mode, and parses large files in a worker', async () => {
+    const richPath = join(workspacePath, 'rich.md')
+    writeFileSync(richPath, '# Rich document\n\nReading comment target.\n\nInline $E=mc^2$.\n\n```mermaid\ngraph LR\n A-->B\n```\n')
+    writeFileSync(join(workspacePath, 'large.md'), '# Large document\n\n' + 'A paragraph for background parsing.\n\n'.repeat(3000))
+    await buttonWithText('Open folder').click()
+    await buttonContaining('rich.md').click()
+    await $('.markdown-body h1').waitForDisplayed()
+    expect(await $('.ProseMirror').isExisting()).toBe(false)
+    await $('.katex').waitForExist()
+    await $('.mermaid-diagram svg').waitForExist()
+    const selected = await browser.execute(() => {
+      const root = document.querySelector('.markdown-preview article')
+      const paragraph = root?.querySelector('p')
+      if (!paragraph?.firstChild) return false
+      const range = document.createRange()
+      range.selectNodeContents(paragraph)
+      const selection = window.getSelection()!
+      selection.removeAllRanges()
+      selection.addRange(range)
+      root!.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+      return true
+    })
+    expect(selected).toBe(true)
+    await buttonContaining('Add comment').click()
+    await $('textarea[placeholder="Write a comment..."]').setValue('Reading mode comment')
+    await buttonWithText('Submit').click()
+    await waitForBodyText('Reading mode comment')
+    expect(readFileSync(richPath, 'utf8')).toContain('Inline $E=mc^2$')
+    await browser.execute(() => {
+      const OriginalWorker = window.Worker
+      ;(window as any).__originalWorker = OriginalWorker
+      ;(window as any).__workerUrls = []
+      window.Worker = class extends OriginalWorker {
+        constructor(url: string | URL, options?: WorkerOptions) {
+          super(url, options)
+          ;(window as any).__workerUrls.push(String(url))
+        }
+      }
+    })
+    await buttonContaining('large.md').click()
+    await waitForBodyText('Large document')
+    await browser.waitUntil(async () => (await $('[data-active-document="true"] .markdown-preview').getAttribute('aria-busy')) === 'false')
+    expect(await $('.ProseMirror').isExisting()).toBe(false)
+    const workers = await browser.execute(() => {
+      window.Worker = (window as any).__originalWorker
+      return (window as any).__workerUrls as string[]
+    })
+    expect(workers.some(url => url.includes('render.worker'))).toBe(true)
+  })
+
+  it('keeps unsaved drafts across tabs and protects tab/workspace closure', async () => {
     await buttonWithText('Open folder').click()
     await waitForBodyText('second.md')
     await buttonContaining('second.md').click()
@@ -295,13 +368,13 @@ describe('MD+HTML Reader Tauri window', () => {
         return false
       }
     })
-    await buttonContaining('second.md').click()
+    await $('[aria-label="关闭 note.md"]').click()
     const confirmMessages = await browser.execute(() => (window as any).__confirmMessages)
 
     expect(confirmMessages).toHaveLength(1)
     expect(confirmMessages[0]).toContain('This file has unsaved changes')
     await waitForBodyText('Unsaved draft')
-    expect(await $('body').getText()).not.toContain('Second file content')
+    expect(await $('[data-active-document="true"]').getText()).not.toContain('Second file content')
     expect(readFileSync(notePath, 'utf8')).toContain('Original keyword')
 
     await buttonWithText('Open folder').click()

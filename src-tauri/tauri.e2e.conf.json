@@ -1,9 +1,12 @@
 {
   "build": {
-    "beforeBuildCommand": "pnpm build --mode e2e"
+    "beforeBuildCommand": "pnpm build --mode e2e --outDir dist-e2e",
+    "frontendDist": "../dist-e2e"
   },
   "bundle": {
-    "targets": ["app"]
+    "targets": [
+      "app"
+    ]
   },
   "app": {
     "withGlobalTauri": true,
@@ -17,7 +20,9 @@
         "main",
         {
           "identifier": "e2e",
-          "windows": ["main"],
+          "windows": [
+            "main"
+          ],
           "permissions": [
             "core:default",
             "core:window:default",
@@ -28,5 +33,6 @@
         }
       ]
     }
-  }
+  },
+  "identifier": "com.markdown-html.reader.e2e"
 }

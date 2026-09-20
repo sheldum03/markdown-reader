@@ -66,7 +66,7 @@ const props = defineProps<{
 }>()
 
 let previewWindowSequence = 0
-const showStaticPreview = ref(false)
+const showStaticPreview = ref(true)
 const isOpeningFullPreview = ref(false)
 const previewError = ref<string | null>(null)
 

@@ -1,0 +1,62 @@
+{
+  "characters": 10000619,
+  "utf8Bytes": 10492747,
+  "rssBefore": [
+    "27789     1  26608 /Users/admin/Desktop/Openwork/markdown-html/src-tauri/target/release/bundle/macos/MD+HTML Reader.app/Contents/MacOS/md-html-reader",
+    "27819     1  11232 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+    "52203     1   3776 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+    "80461     1 321088 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+    "97294 97199 118544 /Users/admin/.codex/worktrees/a570/markdown-html/src-tauri/target/debug/md-html-reader",
+    "97321     1  68528 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+  ],
+  "openMs": 1342,
+  "firstRender": {
+    "blocks": 8,
+    "engineLoads": [],
+    "longestMainThreadGapMs": 998,
+    "nodes": 80,
+    "resources": []
+  },
+  "rssReading": [
+    "27789     1  26560 /Users/admin/Desktop/Openwork/markdown-html/src-tauri/target/release/bundle/macos/MD+HTML Reader.app/Contents/MacOS/md-html-reader",
+    "27819     1  11232 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+    "52203     1   3776 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+    "80461     1 165936 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+    "97294 97199 130400 /Users/admin/.codex/worktrees/a570/markdown-html/src-tauri/target/debug/md-html-reader",
+    "97321     1 561168 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+  ],
+  "scroll": {
+    "clientHeight": 602,
+    "height": 4059970,
+    "ms": 2,
+    "nodes": 101,
+    "scrollTop": 3247976,
+    "text": "中文 English bold with a local link, measured native disk input. 中文 English bold w"
+  },
+  "sourceEditorOpenMs": 101,
+  "sourceEditorNodes": 55,
+  "editMs": 11,
+  "rssEditing": [
+    "27789     1  26560 /Users/admin/Desktop/Openwork/markdown-html/src-tauri/target/release/bundle/macos/MD+HTML Reader.app/Contents/MacOS/md-html-reader",
+    "27819     1  11232 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+    "52203     1   3776 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+    "80461     1 164560 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+    "97294 97199 155648 /Users/admin/.codex/worktrees/a570/markdown-html/src-tauri/target/debug/md-html-reader",
+    "97321     1 583312 /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+  ],
+  "offlineExportBytes": 394236,
+  "offlinePreview": {
+    "external": [],
+    "formula": true,
+    "imageLoaded": true,
+    "svg": true
+  },
+  "splitSync": {
+    "repeatedHeadingOffsetPx": 24.171875,
+    "stablePositions": [
+      3000,
+      7660
+    ],
+    "reverseSync": true
+  }
+}

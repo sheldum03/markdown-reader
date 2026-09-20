@@ -3,13 +3,23 @@
 
 mod browser_preview;
 mod comments;
+mod export;
 mod fs_handler;
 mod html_preview_protocol;
+mod mcp;
 mod path_guard;
 mod search;
 mod translation;
 
 fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|arg| arg == "--mcp") {
+        if let Err(error) = mcp::run(&args) {
+            eprintln!("{}", error);
+            std::process::exit(1);
+        }
+        return;
+    }
     let builder = tauri::Builder::default()
         .manage(html_preview_protocol::PreviewProtocolRoots::default())
         .register_uri_scheme_protocol("preview", |context, request| {
@@ -25,9 +35,11 @@ fn main() {
 
     builder
         .invoke_handler(tauri::generate_handler![
+            mcp::mcp_configuration,
             fs_handler::list_files,
             fs_handler::read_file,
             fs_handler::write_file,
+            fs_handler::write_file_checked,
             comments::calculate_file_hash,
             comments::load_comments,
             comments::save_comment,
@@ -35,7 +47,8 @@ fn main() {
             comments::update_comment,
             search::search_files,
             search::search_content,
-            search::export_as_html,
+            export::export_rendered_html,
+            export::read_export_resource,
             translation::translate_text,
             translation::test_openai_compatible_connection,
             translation::fetch_openai_compatible_models,

@@ -8,7 +8,9 @@ MD+HTML Reader is a macOS desktop app for people who write and review Markdown f
 
 ## What you can do
 
-- Edit Markdown with a WYSIWYG editor while keeping files in their original folder.
+- Read large Markdown documents with a virtual viewport; edit exact source in CodeMirror or use the optional WYSIWYG editor.
+- Keep independent drafts in tabs, synchronize source/preview scrolling, and preview or undo CJK formatting.
+- Connect an MCP client to an explicitly configured local workspace, with read-only access by default.
 - View and edit YAML as raw text while preserving its syntax.
 - Add anchored review comments stored separately from the source document.
 - Search file names and workspace content.
@@ -42,7 +44,7 @@ AI tools are optional. Before creating an AI reading version or document-assista
 
 ## Beta limitations
 
-Comment highlights may be less precise after substantial document edits, and very large documents have not yet been performance-tested. Keep a copy of important work and see [BETA_LIMITATIONS.md](BETA_LIMITATIONS.md) before relying on the app for critical workflows.
+Ten-million-character native samples and phase-two regression results are documented in [Phase-two acceptance](docs/phase-two-acceptance.md). Generated formula/diagram selections require source mode for precise comment anchors. Keep a copy of important work and see [BETA_LIMITATIONS.md](BETA_LIMITATIONS.md) before relying on the app for critical workflows.
 
 ## Release status
 
@@ -58,6 +60,8 @@ pnpm build
 ```
 
 ## Product docs
+
+- [Phase-two acceptance and limitations](docs/phase-two-acceptance.md)
 
 - [Privacy statement](PRIVACY.md) · [中文](PRIVACY.zh-CN.md)
 - [Beta limitations](BETA_LIMITATIONS.md) · [中文](BETA_LIMITATIONS.zh-CN.md)

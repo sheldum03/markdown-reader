@@ -13,6 +13,7 @@
         class="comment-card p-3 bg-gray-50 rounded border border-gray-200"
         :class="{ 'opacity-50': comment.status === 'resolved' }"
       >
+        <button @click="$emit('locate', comment.id)" class="text-xs text-blue-600">定位原文</button>
         <div class="comment-quote text-xs text-gray-500 mb-2 italic">
           "{{ comment.anchor.quote }}"
         </div>
@@ -53,6 +54,7 @@ defineProps<{
 }>()
 
 defineEmits<{
+  locate: [id: string]
   resolve: [id: string]
   delete: [id: string]
 }>()

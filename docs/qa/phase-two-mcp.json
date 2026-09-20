@@ -1,0 +1,18 @@
+{
+  "readOnly": {
+    "transport": "stdio",
+    "responses": 7,
+    "writeEnabled": false,
+    "outsideRejected": true,
+    "symlinkRejected": true,
+    "staleRevisionRejected": true
+  },
+  "writeEnabled": {
+    "transport": "stdio",
+    "responses": 7,
+    "writeEnabled": true,
+    "outsideRejected": true,
+    "symlinkRejected": true,
+    "staleRevisionRejected": true
+  }
+}

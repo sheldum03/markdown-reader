@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import App from '../App.vue'
+vi.mock('../lib/markdown/export', () => ({ exportMarkdown: vi.fn(async (source: string) => '<!doctype html><p>' + source + '</p>') }))
 import { invoke } from '@tauri-apps/api/core'
 import { ask, open, save } from '@tauri-apps/plugin-dialog'
 import { useWorkspaceStore } from '../stores/workspace'
@@ -52,7 +53,7 @@ vi.mock('../components/FileTree.vue', () => ({
   },
 }))
 
-vi.mock('../components/MilkdownEditor.vue', () => ({
+vi.mock('../components/MarkdownDocument.vue', () => ({
   default: {
     props: ['file', 'saveContent'],
     emits: ['createComment', 'translate'],
@@ -235,7 +236,7 @@ describe('App core user flow', () => {
         throw new Error(`Unexpected file: ${args.path}`)
       }
 
-      if (command === 'write_file') {
+      if (command === 'write_file_checked') {
         expect(args.workspacePath).toBe('/tmp/workspace')
         expect(args.path).toBe('/tmp/workspace/note.md')
         fileContent = args.content
@@ -257,13 +258,11 @@ describe('App core user flow', () => {
         return undefined
       }
 
-      if (command === 'export_as_html') {
+      if (command === 'export_rendered_html') {
         expect(args).toEqual({
           workspacePath: '/tmp/workspace',
-          filePath: '/tmp/workspace/note.md',
           outputPath: '/tmp/workspace/note.html',
-          cssContent: null,
-          includeMarkdownSource: false,
+          html: expect.stringContaining('Edited keyword'),
         })
         return undefined
       }
@@ -286,7 +285,7 @@ describe('App core user flow', () => {
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('Original keyword')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('Original keyword')
 
     await wrapper.get('[data-testid="save-edited"]').trigger('click')
     await flushPromises()
@@ -308,7 +307,7 @@ describe('App core user flow', () => {
     await wrapper.findAll('button').find(button => button.text() === 'Search content')!.trigger('click')
     await wrapper.get('[data-testid="search-open"]').trigger('click')
     await flushPromises()
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('Edited keyword')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('Edited keyword')
 
     await wrapper.findAll('button').find(button => button.text() === 'Export HTML')!.trigger('click')
     await flushPromises()
@@ -319,7 +318,7 @@ describe('App core user flow', () => {
     expect(wrapper.text()).toContain('HTML reading version created and opened')
   })
 
-  it('切换不同文件时重建编辑器实例，避免 Milkdown 保留旧文档', async () => {
+  it('切换标签保留每个编辑器实例和草稿', async () => {
     vi.mocked(open).mockResolvedValue('/tmp/workspace')
     vi.mocked(invoke).mockImplementation(async (command: string, args?: any) => {
       if (command === 'list_files') {
@@ -368,19 +367,19 @@ describe('App core user flow', () => {
     const fileButtons = wrapper.findAll('[data-testid="file-item"]')
     await fileButtons[0].trigger('click')
     await flushPromises()
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# First')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# First')
 
     await fileButtons[1].trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# Second')
-    expect(milkdownLifecycle.switchRequests).toBe(1)
-    expect(milkdownLifecycle.actions).toEqual(['switch-file'])
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# Second')
+    expect(milkdownLifecycle.switchRequests).toBe(0)
+    expect(milkdownLifecycle.actions).toEqual([])
     expect(milkdownLifecycle.mountCount).toBe(2)
-    expect(milkdownLifecycle.unmountCount).toBe(1)
+    expect(milkdownLifecycle.unmountCount).toBe(0)
   })
 
-  it('编辑器拒绝切换时保留当前文件和未保存内容', async () => {
+  it('编辑器拒绝关闭时保留标签和未保存内容', async () => {
     vi.mocked(open).mockResolvedValue('/tmp/workspace')
     vi.mocked(invoke).mockImplementation(async (command: string, args?: any) => {
       if (command === 'list_files') {
@@ -404,12 +403,12 @@ describe('App core user flow', () => {
     await flushPromises()
     milkdownLifecycle.allowSwitch = false
 
-    await fileButtons[1].trigger('click')
+    await wrapper.get('[aria-label="关闭 first.md"]').trigger('click')
     await flushPromises()
 
     expect(milkdownLifecycle.switchRequests).toBe(1)
     expect(milkdownLifecycle.actions).toEqual(['switch-file'])
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# First')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# First')
     expect(milkdownLifecycle.mountCount).toBe(1)
     expect(invoke).not.toHaveBeenCalledWith('read_file', expect.objectContaining({
       path: '/tmp/workspace/second.md',
@@ -596,6 +595,7 @@ describe('App core user flow', () => {
     await flushPromises()
 
     await wrapper.findAll('button').find(button => button.text() === 'Show outline')!.trigger('click')
+    await flushPromises()
 
     expect(wrapper.get('[data-testid="document-outline"]').text()).toContain('# Intro')
     expect(wrapper.get('[data-testid="document-outline"]').text()).toContain('## Details')
@@ -717,9 +717,11 @@ describe('App core user flow', () => {
       if (command === 'test_openai_compatible_connection') {
         expect(args).toEqual({
           baseUrl: 'https://api.deepseek.com/v1',
+          model: 'deepseek-chat',
           apiKey: 'test-api-key',
+          verifyChat: false,
         })
-        return { modelCount: 2 }
+        return { modelCount: 2, chatVerified: false }
       }
       if (command === 'fetch_openai_compatible_models') {
         expect(args).toEqual({
@@ -737,6 +739,7 @@ describe('App core user flow', () => {
     await wrapper.vm.$nextTick()
     await wrapper.get('[aria-label="Configure OpenAI-compatible model"]').trigger('click')
     await wrapper.get('input[placeholder="https://api.deepseek.com/v1"]').setValue('https://api.deepseek.com/v1')
+    await wrapper.get('input[placeholder="deepseek-chat"]').setValue('deepseek-chat')
     await wrapper.get('input[placeholder="sk-..."]').setValue('test-api-key')
 
     await wrapper.findAll('button').find(button => button.text() === 'Test connection')!.trigger('click')
@@ -915,7 +918,7 @@ describe('App core user flow', () => {
     await flushPromises()
 
     expect(milkdownLifecycle.saveCurrentContentRequests).toBe(1)
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# 你好')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# 你好')
     expect(wrapper.text()).toContain('Chinese translation copy created: note.zh.md')
   })
 
@@ -970,7 +973,7 @@ describe('App core user flow', () => {
     await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# Hello')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# Hello')
     expect(milkdownLifecycle.switchRequests).toBe(0)
     expect(open).toHaveBeenCalledTimes(1)
 
@@ -983,7 +986,7 @@ describe('App core user flow', () => {
     await flushPromises()
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# 你好')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# 你好')
   })
 
   it('全文翻译失败时保留当前文件并显示错误', async () => {
@@ -1018,7 +1021,7 @@ describe('App core user flow', () => {
       .trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# Hello')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# Hello')
     expect(wrapper.text()).toContain('中文翻译副本已存在，未覆盖原有文件')
   })
 
@@ -1086,7 +1089,7 @@ describe('App core user flow', () => {
       if (command === 'calculate_file_hash') return 'hash-note'
       if (command === 'load_comments') return []
       if (command === 'optimize_document_with_comments') return { content: '# Optimized' }
-      if (command === 'write_file') throw new Error('write should not be called')
+      if (command === 'write_file_checked') throw new Error('write should not be called')
       throw new Error(`Unexpected command: ${command}`)
     })
 
@@ -1120,7 +1123,7 @@ describe('App core user flow', () => {
       if (command === 'calculate_file_hash') return 'hash-note'
       if (command === 'load_comments') return []
       if (command === 'optimize_document_with_comments') return { content: '# Optimized' }
-      if (command === 'write_file') {
+      if (command === 'write_file_checked') {
         expect(args).toEqual({
           workspacePath: '/tmp/workspace',
           path: '/tmp/workspace/note.md',
@@ -1172,7 +1175,7 @@ describe('App core user flow', () => {
       if (command === 'optimize_document_with_comments') {
         return { content: args.markdown === '# Other' ? '# Other optimized' : '# Original optimized' }
       }
-      if (command === 'write_file') return undefined
+      if (command === 'write_file_checked') return undefined
       throw new Error(`Unexpected command: ${command}`)
     })
 

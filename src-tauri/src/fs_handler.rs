@@ -179,9 +179,12 @@ mod tests {
 }
 
 #[command]
-pub fn list_files(app: AppHandle, path: String) -> Result<Vec<FileItem>, String> {
+pub async fn list_files(app: AppHandle, path: String) -> Result<Vec<FileItem>, String> {
     let root_path = workspace_root(&path)?;
-    let files = scan_directory(&root_path)?;
+    let scan_path = root_path.clone();
+    let files = tauri::async_runtime::spawn_blocking(move || scan_directory(&scan_path))
+        .await
+        .map_err(|error| format!("扫描工作区失败: {}", error))??;
     app.state::<tauri::Scopes>()
         .allow_directory(&root_path, true)
         .map_err(|error| format!("授权 HTML 预览资源失败: {}", error))?;
@@ -189,7 +192,6 @@ pub fn list_files(app: AppHandle, path: String) -> Result<Vec<FileItem>, String>
     Ok(files)
 }
 
-#[cfg(test)]
 pub fn list_workspace_files(path: String) -> Result<Vec<FileItem>, String> {
     let root_path = workspace_root(&path)?;
     scan_directory(&root_path)
@@ -385,4 +387,34 @@ fn decode_basic_html_entities(text: &str) -> String {
         .replace("&gt;", ">")
         .replace("&quot;", "\"")
         .replace("&#39;", "'")
+}
+
+#[command]
+pub fn write_file_checked(
+    workspace_path: String,
+    path: String,
+    content: String,
+    expected_content: String,
+) -> Result<(), String> {
+    use std::io::{Seek, SeekFrom, Write};
+    let path = document_file_in_workspace(&workspace_path, &path)?;
+    let mut file = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)
+        .map_err(|e| e.to_string())?;
+    file.lock().map_err(|e| e.to_string())?;
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+    if decode_document_bytes(&bytes) != expected_content {
+        return Err(
+            "文件已被外部程序修改，未覆盖磁盘。请保留当前草稿并重新打开文件核对差异。".into(),
+        );
+    }
+    file.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
+    file.write_all(content.as_bytes())
+        .map_err(|e| e.to_string())?;
+    file.set_len(content.len() as u64)
+        .map_err(|e| e.to_string())?;
+    file.sync_all().map_err(|e| e.to_string())
 }

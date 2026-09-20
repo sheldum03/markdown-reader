@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import App from '../App.vue'
+vi.mock('../lib/markdown/export', () => ({ exportMarkdown: vi.fn(async (source: string) => '<!doctype html><p>' + source + '</p>') }))
 import { useWorkspaceStore } from '../stores/workspace'
 import { invoke } from '@tauri-apps/api/core'
 import { save } from '@tauri-apps/plugin-dialog'
@@ -11,7 +12,7 @@ vi.mock('../components/FileTree.vue', () => ({
   default: { template: '<div data-testid="file-tree" />' },
 }))
 
-vi.mock('../components/MilkdownEditor.vue', () => ({
+vi.mock('../components/MarkdownDocument.vue', () => ({
   default: {
     props: ['file', 'saveContent'],
     emits: ['createComment'],
@@ -124,12 +125,10 @@ describe('App shell actions', () => {
       defaultPath: '/tmp/workspace/note.html',
       filters: [{ name: 'HTML', extensions: ['html'] }],
     })
-    expect(invoke).toHaveBeenCalledWith('export_as_html', {
+    expect(invoke).toHaveBeenCalledWith('export_rendered_html', {
       workspacePath: '/tmp/workspace',
-      filePath: '/tmp/workspace/note.md',
       outputPath: '/tmp/workspace/note.html',
-      cssContent: null,
-      includeMarkdownSource: false,
+      html: expect.stringContaining('# Note'),
     })
     expect(wrapper.text()).toContain('HTML reading version created and opened')
   })

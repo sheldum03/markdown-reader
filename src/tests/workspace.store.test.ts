@@ -97,10 +97,11 @@ describe('workspace store', () => {
 
       await store.saveCurrentFile('new content')
 
-      expect(invoke).toHaveBeenCalledWith('write_file', {
+      expect(invoke).toHaveBeenCalledWith('write_file_checked', {
         workspacePath: '/test',
         path: '/test/file.md',
         content: 'new content',
+        expectedContent: 'old content',
       })
 
       expect(store.currentFile.content).toBe('new content')
@@ -142,10 +143,11 @@ describe('workspace store', () => {
       resolveWrite()
       await savePromise
 
-      expect(invoke).toHaveBeenCalledWith('write_file', {
+      expect(invoke).toHaveBeenCalledWith('write_file_checked', {
         workspacePath: '/test',
         path: '/test/first.md',
         content: 'first saved',
+        expectedContent: 'first old',
       })
       expect(store.currentFile).toEqual({ path: '/test/second.md', content: 'second content' })
     })

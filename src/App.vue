@@ -22,6 +22,7 @@
         >
           {{ t('quickStart') }}
         </button>
+        <button v-if="workspace.folderPath" class="px-2 text-sm" @click="showMcp = !showMcp">MCP</button>
         <details v-if="workspace.folderPath" class="relative">
           <summary class="cursor-pointer list-none px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
             {{ t('documentTools') }}
@@ -122,12 +123,20 @@
         </button>
       </div>
     </header>
+    <section v-if="showMcp && workspace.folderPath" class="p-4 bg-white border-b">
+      <p>将此配置加入 MCP 客户端。仅授权当前工作区，默认只读；服务访问磁盘文件，不读取未保存草稿。</p>
+      <label><input v-model="mcpWritable" type="checkbox" @change="loadMcpConfig" /> 允许客户端写入此工作区的已有文档（需匹配文件版本）</label>
+      <button class="ml-4" @click="loadMcpConfig">生成配置</button>
+      <pre class="text-xs whitespace-pre-wrap">{{ mcpConfig }}</pre>
+    </section>
+
 
     <div
-      v-if="workspaceError"
+      v-if="workspaceError || workspace.openError"
+      role="alert"
       class="px-4 py-2 text-sm border-b bg-red-50 text-red-600 border-red-100"
     >
-      {{ workspaceError }}
+      {{ workspaceError || workspace.openError }}
     </div>
 
     <div
@@ -233,6 +242,7 @@
     <main class="flex-1 flex overflow-hidden">
       <aside
         v-if="workspace.folderPath"
+        v-show="!focusMode"
         class="w-64 bg-white border-r border-gray-200 overflow-auto"
       >
         <div class="p-2 border-b border-gray-200 space-y-2">
@@ -294,16 +304,18 @@
       </aside>
 
       <aside
-        v-if="outlineOpen && currentIsMarkdown"
+        v-if="outlineOpen && currentIsMarkdown && !focusMode"
         class="w-56 bg-white border-r border-gray-200 overflow-hidden"
       >
         <DocumentOutline
           :content="workspace.currentFile?.content || ''"
+          :headings="documentHeadings"
           @select="handleOutlineSelect"
         />
       </aside>
 
-      <section class="flex-1 flex flex-col">
+      <section class="flex-1 min-w-0 min-h-0 flex flex-col">
+        <div v-if="workspace.openingPath" role="status" class="px-4 py-2 text-sm">Opening {{ workspace.openingPath.split('/').pop() }}…</div>
         <div v-if="!workspace.folderPath" class="flex-1 overflow-auto bg-slate-50 p-6 sm:p-10">
           <section class="mx-auto flex min-h-full max-w-4xl flex-col justify-center">
             <p class="text-sm font-medium text-blue-700">MD+HTML Reader</p>
@@ -350,39 +362,30 @@
           </div>
         </div>
 
-        <div v-else class="flex-1 overflow-hidden">
-          <HtmlRenderer
-            v-if="currentIsHtml"
-            :key="workspace.currentFile.path"
-            :file="workspace.currentFile"
-          />
-
-          <YamlEditor
-            v-else-if="currentIsYaml"
-            ref="editorRef"
-            :key="workspace.currentFile.path"
-            :file="workspace.currentFile"
-            :save-content="saveFile"
-          />
-
-          <MilkdownEditor
-            v-else
-            ref="editorRef"
-            :key="workspace.currentFile.path"
-            :file="workspace.currentFile"
-            :save-content="saveFile"
-            @createComment="handleCreateComment"
-            @translate="handleTranslate"
-          />
+        <div v-else class="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <nav role="tablist" aria-label="文档标签" class="flex overflow-x-auto border-b bg-white shrink-0">
+            <div v-for="tab in workspace.tabs" :key="tab.path" class="flex items-center border-r px-3 py-2 gap-2 text-sm" :class="{ 'bg-blue-50': tab.path === workspace.currentFile?.path }">
+              <button role="tab" :aria-selected="tab.path === workspace.currentFile?.path" @click="openFile(tab.path)">{{ tab.path.split('/').pop() }}{{ tab.draft !== undefined && tab.draft !== tab.content ? ' ●' : '' }}</button>
+              <button :aria-label="'关闭 ' + tab.path.split('/').pop()" @click="closeTab(tab.path)">×</button>
+            </div>
+          </nav>
+          <div v-for="tab in workspace.tabs" v-show="tab.path === workspace.currentFile?.path" :data-active-document="tab.path === workspace.currentFile?.path" :key="tab.path" class="flex-1 min-h-0 overflow-hidden">
+            <HtmlRenderer v-if="/\.(html?|xhtml)$/i.test(tab.path)" :file="tab" />
+            <YamlEditor v-else-if="/\.yaml$/i.test(tab.path)" :ref="(el: any) => setTabEditor(tab.path, el)" :file="tab" :save-content="(content: string) => saveTabFile(tab.path, content)" />
+            <MarkdownDocument v-else :ref="(el: any) => setTabEditor(tab.path, el)" :file="tab" :save-content="(content: string) => saveTabFile(tab.path, content)"
+              @change="tab.draft = $event" @create-comment="handleCreateComment" @translate="handleTranslate"
+              @headings="tabHeadings.set(tab.path, $event); tab.path === workspace.currentFile?.path && (documentHeadings = $event)" @focus="focusMode = $event" />
+          </div>
         </div>
       </section>
 
       <aside
-        v-if="workspace.currentFile && comments.list.length > 0"
+        v-if="workspace.currentFile && comments.list.length > 0 && !focusMode"
         class="w-80 bg-white border-l border-gray-200 overflow-auto"
       >
         <CommentSidebar
           :comments="comments.list"
+          @locate="locateComment"
           @resolve="handleResolveComment"
           @delete="handleDeleteComment"
         />
@@ -473,7 +476,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref, onMounted, onUnmounted } from 'vue'
+import { computed, defineAsyncComponent, ref, watch, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ask, open, save } from '@tauri-apps/plugin-dialog'
@@ -483,13 +486,15 @@ import FileTree from './components/FileTree.vue'
 import HtmlRenderer from './components/HtmlRenderer.vue'
 import YamlEditor from './components/YamlEditor.vue'
 import CommentSidebar from './components/CommentSidebar.vue'
-import DocumentOutline from './components/DocumentOutline.vue'
+import type { OutlineHeading } from './lib/markdown/renderer'
+import './styles/markdown.css'
 import type { Selection } from './utils/selection'
 import { locale, setLocale, t, type AppLocale } from './i18n'
 
-const MilkdownEditor = defineAsyncComponent(() =>
-  import('./components/MilkdownEditor.vue').then(module => module.default)
+const MarkdownDocument = defineAsyncComponent(() =>
+  import('./components/MarkdownDocument.vue').then(module => module.default)
 )
+const DocumentOutline = defineAsyncComponent(() => import('./components/DocumentOutline.vue').then(module => module.default))
 const SearchPanel = defineAsyncComponent(() =>
   import('./components/SearchPanel.vue').then(module => module.default)
 )
@@ -507,11 +512,6 @@ type TranslationService = 'ollama' | 'tencent' | 'openai-compatible'
 type TranslationState = 'idle' | 'loading' | 'success' | 'error'
 type DocumentAssistantMode = 'suggestions' | 'optimize'
 type HtmlGenerationMode = 'default' | 'ai-reading'
-interface OutlineHeading {
-  level: number
-  text: string
-  line: number
-}
 interface TranslationResult {
   original: string
   translated: string
@@ -555,11 +555,12 @@ interface DocumentAssistantSession {
   permissionScope: AssistantWritePermissionScope
 }
 interface EditorHandle {
+  scrollToSource?: (start: number, length: number) => void
   requestDiscardChanges: (action: 'switch-file' | 'switch-workspace' | 'close-window') => Promise<boolean>
   saveCurrentContent: () => Promise<void>
   getCurrentContent: () => string
   replaceContent: (content: string) => Promise<void>
-  scrollToHeading: (text: string, level: number) => void
+  scrollToHeading: (text: string, level: number, line?: number) => void
 }
 
 const workspace = useWorkspaceStore()
@@ -572,6 +573,9 @@ const fileFilter = ref<FileFilter>('all')
 const displayMode = ref<DisplayMode>('filename')
 const locateToken = ref(0)
 const outlineOpen = ref(false)
+const documentHeadings = ref<OutlineHeading[]>([])
+const focusMode = ref(false)
+watch(() => workspace.currentFile?.path, () => { documentHeadings.value = []; focusMode.value = false })
 const editorRef = ref<EditorHandle | null>(null)
 const translationService = ref<TranslationService>('ollama')
 const htmlGenerationMode = ref<HtmlGenerationMode>('default')
@@ -590,6 +594,11 @@ const translationOriginal = ref('')
 const translationTranslated = ref('')
 const translationError = ref<string | null>(null)
 const isExporting = ref(false)
+const showMcp = ref(false), mcpWritable = ref(false), mcpConfig = ref('')
+async function loadMcpConfig() {
+  try { mcpConfig.value = JSON.stringify(await invoke('mcp_configuration', { workspacePath: workspace.folderPath, allowWrite: mcpWritable.value }), null, 2) }
+  catch (error) { mcpConfig.value = String(error) }
+}
 const exportMessage = ref<string | null>(null)
 const isMarkdownTranslating = ref(false)
 const markdownTranslationMessage = ref<string | null>(null)
@@ -727,7 +736,9 @@ async function testOpenAiConnection() {
     openAiConfigMessage.value = null
     const result = await invoke<{ modelCount: number }>('test_openai_compatible_connection', {
       baseUrl,
+      model: openAiModel.value.trim(),
       apiKey,
+      verifyChat: false,
     })
     openAiConfigMessage.value = t('connectedModels', { count: result.modelCount })
   } catch (error) {
@@ -821,7 +832,7 @@ async function openFolder() {
     const selectedPath = Array.isArray(selected) ? selected[0] : selected
     if (!selectedPath) return
 
-    if (editorRef.value && !(await editorRef.value.requestDiscardChanges('switch-workspace'))) return
+    if (!(await protectTabs('switch-workspace'))) return
     if (!(await workspace.loadFolder(selectedPath))) {
       throw new Error(t('folderReadError'))
     }
@@ -835,13 +846,37 @@ async function openFolder() {
   }
 }
 
+const tabEditors = new Map<string, NonNullable<typeof editorRef.value>>()
+const tabHeadings = new Map<string, OutlineHeading[]>()
+function setTabEditor(path: string, editor: NonNullable<typeof editorRef.value> | null) {
+  if (editor) tabEditors.set(path, editor)
+  else { tabEditors.delete(path); tabHeadings.delete(path) }
+  if (workspace.currentFile?.path === path) editorRef.value = editor
+}
+async function protectTabs(action: 'switch-workspace' | 'close-window') {
+  for (const editor of tabEditors.values()) if (!(await editor.requestDiscardChanges(action))) return false
+  return true
+}
+async function closeTab(path: string) {
+  if (isMarkdownTranslating.value) return
+  const editor = tabEditors.get(path)
+  if (editor && !(await editor.requestDiscardChanges('switch-file'))) return
+  workspace.closeTab(path); tabEditors.delete(path); tabHeadings.delete(path)
+  const current = workspace.currentFile
+  editorRef.value = current ? tabEditors.get(current.path) || null : null
+  documentHeadings.value = current ? tabHeadings.get(current.path) || [] : []
+  if (current && workspace.folderPath) await comments.loadComments(workspace.folderPath, current.path, current.content)
+  else comments.clearCurrentFile()
+}
+
 async function openFile(filePath: string) {
   if (isMarkdownTranslating.value) return
   if (!workspace.folderPath) return
   if (workspace.currentFile?.path === filePath) return
-  if (editorRef.value && !(await editorRef.value.requestDiscardChanges('switch-file'))) return
 
   if (!(await workspace.openFile(filePath))) return
+  editorRef.value = tabEditors.get(filePath) || null
+  documentHeadings.value = tabHeadings.get(filePath) || []
   await comments.loadComments(workspace.folderPath, filePath, workspace.currentFile?.content)
 }
 
@@ -866,14 +901,17 @@ function toggleDisplayMode() {
   displayMode.value = displayMode.value === 'filename' ? 'title' : 'filename'
 }
 
+function locateComment(id: string) {
+  const comment = comments.list.find(item => item.id === id)
+  if (comment) editorRef.value?.scrollToSource?.(comment.anchor.offset, comment.anchor.length)
+}
 function handleOutlineSelect(heading: OutlineHeading) {
-  editorRef.value?.scrollToHeading?.(heading.text, heading.level)
+  editorRef.value?.scrollToHeading?.(heading.text, heading.level, heading.line)
 }
 
-async function saveFile(content: string) {
-  const filePath = workspace.currentFile?.path
+async function saveTabFile(filePath: string, content: string) {
   const folderPath = workspace.folderPath
-  await workspace.saveCurrentFile(content)
+  await workspace.saveFile(filePath, content)
   if (folderPath && filePath && workspace.folderPath === folderPath && workspace.currentFile?.path === filePath) {
     await comments.refreshCurrentFileHash(folderPath, filePath)
   }
@@ -889,7 +927,7 @@ async function saveMarkdownBeforeHtmlGeneration(sourcePath: string) {
 }
 
 async function openGeneratedHtml(workspacePath: string, outputPath: string) {
-  if (!(await workspace.loadFolder(workspacePath))) {
+  if (!(await workspace.refreshFiles())) {
     throw new Error(t('refreshFiles'))
   }
   comments.clearCurrentFile()
@@ -925,13 +963,11 @@ async function exportHtml() {
 
     if (!outputPath || typeof outputPath !== 'string') return
 
-    await invoke('export_as_html', {
-      workspacePath,
-      filePath: sourceFile.path,
-      outputPath,
-      cssContent: null,
-      includeMarkdownSource: includeMarkdownSource.value,
-    })
+    await editorRef.value?.saveCurrentContent?.()
+
+    const { exportMarkdown } = await import('./lib/markdown/export')
+    const html = await exportMarkdown(editorRef.value?.getCurrentContent?.() ?? sourceFile.content, sourceFile.path, workspacePath, includeMarkdownSource.value)
+    await invoke('export_rendered_html', { workspacePath, outputPath, html })
     await openGeneratedHtml(workspacePath, outputPath)
     exportMessage.value = t('htmlCreated')
   } catch (error) {
@@ -1006,7 +1042,7 @@ async function translateMarkdownFile() {
       ...(openaiConfig ? { openaiConfig } : {}),
     })
 
-    if (!(await workspace.loadFolder(workspacePath))) {
+    if (!(await workspace.refreshFiles())) {
       throw new Error(t('refreshFiles'))
     }
     comments.clearCurrentFile()
@@ -1227,7 +1263,7 @@ function handleKeyDown(event: KeyboardEvent) {
 onMounted(async () => {
   window.addEventListener('keydown', handleKeyDown)
   const unlisten = await getCurrentWindow().onCloseRequested(async (event) => {
-    if (editorRef.value && !(await editorRef.value.requestDiscardChanges('close-window'))) {
+    if (!(await protectTabs('close-window'))) {
       event.preventDefault()
     }
   })
