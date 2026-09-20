@@ -11,7 +11,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { convertFileSrc } from '@tauri-apps/api/core'
-import { open } from '@tauri-apps/plugin-shell'
+import { handleMarkdownLink } from '../lib/markdown/dom'
 import { renderMarkdown, type RenderedMarkdown, type OutlineHeading } from '../lib/markdown/renderer'
 import { enhanceMarkdown } from '../lib/markdown/enhance'
 import CommentTooltip from './CommentTooltip.vue'
@@ -97,28 +97,7 @@ watch(() => props.content, (source, old) => {
 }, { immediate: true })
 
 async function handleClick(event: MouseEvent) {
-  const target = event.target as HTMLElement
-  const button = target.closest<HTMLButtonElement>('[data-copy-code]')
-  if (button) {
-    const code = button.closest('.code-block')?.querySelector('pre')
-    try {
-      await navigator.clipboard.writeText(code?.textContent || '')
-      button.textContent = '已复制'
-    } catch { button.textContent = '复制失败，请手动选择' }
-    return
-  }
-  const link = target.closest('a')
-  if (!link) return
-  event.preventDefault()
-  const href = link.getAttribute('href') || ''
-  if (href.startsWith('#')) {
-    let id = href.slice(1)
-    try { id = decodeURIComponent(id) } catch { /* use the literal fragment */ }
-    const heading = Array.from(root.value?.querySelectorAll<HTMLElement>('[id]') || []).find(node => node.id === id || node.textContent?.trim().toLowerCase().replace(/\s+/g, '-') === id)
-    heading?.scrollIntoView?.({ block: 'start' })
-  } else if (/^(https?:|mailto:)/i.test(href)) {
-    try { await open(href) } catch { error.value = '无法打开链接' }
-  }
+  try { await handleMarkdownLink(event, root.value) } catch { error.value = '无法打开链接' }
 }
 function selectText() { selection.value = root.value ? mapDomSelection(root.value, props.content) : null }
 function onScroll() {

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import App from '../App.vue'
+import { exportMarkdown } from '../lib/markdown/export'
 vi.mock('../lib/markdown/export', () => ({ exportMarkdown: vi.fn(async (source: string) => '<!doctype html><p>' + source + '</p>') }))
 import { invoke } from '@tauri-apps/api/core'
 import { ask, open, save } from '@tauri-apps/plugin-dialog'
@@ -13,6 +14,7 @@ const milkdownLifecycle = vi.hoisted(() => ({
   unmountCount: 0,
   switchRequests: 0,
   saveCurrentContentRequests: 0,
+  saveBarrier: null as Promise<void> | null,
   saveCurrentContentError: null as Error | null,
   replacementRequests: [] as string[],
   allowSwitch: true,
@@ -56,9 +58,10 @@ vi.mock('../components/FileTree.vue', () => ({
 vi.mock('../components/MarkdownDocument.vue', () => ({
   default: {
     props: ['file', 'saveContent'],
-    emits: ['createComment', 'translate'],
+    emits: ['createComment', 'translate', 'headings'],
     mounted() {
       milkdownLifecycle.mountCount++
+      ;(this as any).$emit('headings', [{ text: (this as any).file.path, line: 1, level: 1, id: 'heading-1' }])
     },
     unmounted() {
       milkdownLifecycle.unmountCount++
@@ -72,6 +75,7 @@ vi.mock('../components/MarkdownDocument.vue', () => ({
         },
         async saveCurrentContent() {
           milkdownLifecycle.saveCurrentContentRequests++
+          if (milkdownLifecycle.saveCurrentContentRequests === 2) await milkdownLifecycle.saveBarrier
           if (milkdownLifecycle.saveCurrentContentError) {
             throw milkdownLifecycle.saveCurrentContentError
           }
@@ -152,11 +156,11 @@ vi.mock('../components/SearchPanel.vue', () => ({
 
 vi.mock('../components/DocumentOutline.vue', () => ({
   default: {
-    props: ['content'],
+    props: ['content', 'headings'],
     emits: ['select'],
     template: `
       <div data-testid="document-outline">
-        <span>{{ content }}</span>
+        <span>{{ content }}</span><span data-testid="outline-headings">{{ headings }}</span>
         <button data-testid="outline-select" @click="$emit('select', { level: 2, text: 'Details', line: 3 })">
           Details
         </button>
@@ -202,6 +206,7 @@ describe('App core user flow', () => {
     milkdownLifecycle.unmountCount = 0
     milkdownLifecycle.switchRequests = 0
     milkdownLifecycle.saveCurrentContentRequests = 0
+    milkdownLifecycle.saveBarrier = null
     milkdownLifecycle.saveCurrentContentError = null
     milkdownLifecycle.replacementRequests = []
     milkdownLifecycle.allowSwitch = true
@@ -316,6 +321,54 @@ describe('App core user flow', () => {
       filters: [{ name: 'HTML', extensions: ['html'] }],
     })
     expect(wrapper.text()).toContain('HTML reading version created and opened')
+  })
+
+  it('关闭当前标签后保留下一个标签的大纲', async () => {
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === 'read_file') return 'BBB'
+      if (command === 'load_comments') return []
+      return 'hash'
+    })
+    const pinia = createPinia(), workspace = useWorkspaceStore(pinia)
+    workspace.folderPath = '/tmp/workspace'
+    workspace.currentFile = { path: '/tmp/workspace/a.md', content: 'AAA' }
+    const wrapper = mount(App, { global: { plugins: [pinia] } })
+    await flushPromises()
+    await workspace.openFile('/tmp/workspace/b.md')
+    await flushPromises()
+    await wrapper.get('[aria-label="关闭 b.md"]').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'Show outline')!.trigger('click')
+    await flushPromises()
+    expect(workspace.currentFile?.path).toBe('/tmp/workspace/a.md')
+    expect(wrapper.get('[data-testid="outline-headings"]').text()).toContain('/tmp/workspace/a.md')
+    wrapper.unmount()
+  })
+
+  it('导出保存期间切换标签仍使用源文件内容与资源路径', async () => {
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === 'read_file') return 'BBB'
+      if (command === 'load_comments' || command === 'list_files') return []
+      return 'hash'
+    })
+    const pinia = createPinia(), workspace = useWorkspaceStore(pinia)
+    workspace.folderPath = '/tmp/workspace'
+    workspace.currentFile = { path: '/tmp/workspace/a.md', content: 'AAA' }
+    const wrapper = mount(App, { global: { plugins: [pinia] } })
+    await flushPromises()
+    let finishSave!: () => void
+    milkdownLifecycle.saveBarrier = new Promise<void>(resolve => { finishSave = resolve })
+    vi.mocked(save).mockResolvedValue('/tmp/workspace/a.html')
+    await wrapper.findAll('button').find(button => button.text() === 'Export HTML')!.trigger('click')
+    await flushPromises()
+    expect(milkdownLifecycle.saveCurrentContentRequests).toBe(2)
+    await workspace.openFile('/tmp/workspace/b.md')
+    await flushPromises()
+    finishSave()
+    await flushPromises()
+    expect(exportMarkdown).toHaveBeenCalledWith('AAA', '/tmp/workspace/a.md', '/tmp/workspace', false)
+    expect(invoke).toHaveBeenCalledWith('export_rendered_html', expect.objectContaining({ html: expect.stringContaining('AAA') }))
+    wrapper.unmount()
   })
 
   it('切换标签保留每个编辑器实例和草稿', async () => {

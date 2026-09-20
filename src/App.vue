@@ -575,7 +575,7 @@ const locateToken = ref(0)
 const outlineOpen = ref(false)
 const documentHeadings = ref<OutlineHeading[]>([])
 const focusMode = ref(false)
-watch(() => workspace.currentFile?.path, () => { documentHeadings.value = []; focusMode.value = false })
+watch(() => workspace.currentFile?.path, path => { documentHeadings.value = path ? tabHeadings.get(path) || [] : []; focusMode.value = false })
 const editorRef = ref<EditorHandle | null>(null)
 const translationService = ref<TranslationService>('ollama')
 const htmlGenerationMode = ref<HtmlGenerationMode>('default')
@@ -947,6 +947,7 @@ async function generateHtml() {
 async function exportHtml() {
   const workspacePath = workspace.folderPath
   const sourceFile = workspace.currentFile
+  const sourceEditor = editorRef.value
   if (!workspacePath || !sourceFile || !currentIsMarkdown.value) return
 
   isExporting.value = true
@@ -963,10 +964,11 @@ async function exportHtml() {
 
     if (!outputPath || typeof outputPath !== 'string') return
 
-    await editorRef.value?.saveCurrentContent?.()
+    await sourceEditor?.saveCurrentContent()
+    const sourceContent = sourceEditor?.getCurrentContent() ?? sourceFile.content
 
     const { exportMarkdown } = await import('./lib/markdown/export')
-    const html = await exportMarkdown(editorRef.value?.getCurrentContent?.() ?? sourceFile.content, sourceFile.path, workspacePath, includeMarkdownSource.value)
+    const html = await exportMarkdown(sourceContent, sourceFile.path, workspacePath, includeMarkdownSource.value)
     await invoke('export_rendered_html', { workspacePath, outputPath, html })
     await openGeneratedHtml(workspacePath, outputPath)
     exportMessage.value = t('htmlCreated')

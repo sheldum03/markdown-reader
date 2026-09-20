@@ -103,11 +103,14 @@ function selectText() { selection.value = root.value ? mapDomSelection(root.valu
 function addComment(value: string, selected: Selection) { emit('createComment', createAnchor(props.content, selected.start, selected.end), value); selection.value = null }
 async function handleClick(event: MouseEvent) {
   const link = (event.target as HTMLElement).closest('a')
-  if (link?.hash) {
-    const id = decodeURIComponent(link.hash.slice(1)), index = anchors[id]
+  const href = link?.getAttribute('href') || ''
+  if (href.startsWith('#')) {
+    let id = href.slice(1)
+    try { id = decodeURIComponent(id) } catch { /* use the literal fragment */ }
+    const index = Object.hasOwn(anchors, id) ? anchors[id] : undefined
     if (index !== undefined && scroller.value) { event.preventDefault(); suppressScroll = true; scroller.value.scrollTop = prefix[index]; renderWindow(); return }
   }
-  await handleMarkdownLink(event, root.value)
+  try { await handleMarkdownLink(event, root.value) } catch { error.value = '无法打开链接' }
 }
 onBeforeUnmount(() => { ++generation; clearTimeout(renderTimer); worker?.terminate(); cleanup?.(); observer?.disconnect() })
 function scrollToSource(start: number, length: number) {

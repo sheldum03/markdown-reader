@@ -10,6 +10,7 @@ export interface OutlineHeading {
   id: string
 }
 export interface RenderedMarkdown { html: string; headings: OutlineHeading[] }
+export function headingSlug(text: string): string { return text.trim().toLowerCase().replace(/\s+/g, '-') }
 export interface MarkdownBlock { start: number; end: number; line: number; endLine: number; estimate: number; raw?: boolean }
 export function lineOffsets(source: string): number[] { const offsets = [0]; for (let i = 0; i < source.length; i++) if (source.charCodeAt(i) === 10) offsets.push(i + 1); return offsets }
 export interface MarkdownRenderer {
@@ -110,10 +111,14 @@ export function prepareMarkdown(source: string, virtual = false) {
     // Keep groups bounded. An indivisible enormous paragraph/list/code block is shown in
     // source slices instead of mounting an unbounded subtree.
     if (virtual && end - start > 32000) {
+      let sliceLine = startLine
       for (let pos = start; pos < end;) {
         let until = Math.min(end, pos + 8000)
         if (until < end && /[\uD800-\uDBFF]/.test(source[until - 1])) until--
-        blocks.push({ start: pos, end: until, line: startLine + 1, endLine: endLine + 1, estimate: Math.max(48, Math.ceil((until - pos) / 90) * 24), raw: true })
+        while (sliceLine + 1 < offsets.length && offsets[sliceLine + 1] <= pos) sliceLine++
+        let lastLine = sliceLine
+        while (lastLine + 1 < offsets.length && offsets[lastLine + 1] < until) lastLine++
+        blocks.push({ start: pos, end: until, line: sliceLine + 1, endLine: lastLine + 2, estimate: Math.max(48, Math.ceil((until - pos) / 90) * 24), raw: true })
         ranges.push([begin, i + 1]); pos = until
       }
     } else {
@@ -122,7 +127,7 @@ export function prepareMarkdown(source: string, virtual = false) {
     }
     begin = i + 1
   }
-  const anchors: Record<string, number> = {}
+  const anchors: Record<string, number> = Object.create(null)
   for (let index = 0; index < ranges.length; index++) {
     const [from, to] = ranges[index]
     const visit = (token: Token) => {
@@ -132,6 +137,10 @@ export function prepareMarkdown(source: string, virtual = false) {
       token.children?.forEach(visit)
     }
     tokens.slice(from, to).forEach(visit)
+  }
+  for (const heading of headings) {
+    const slug = headingSlug(heading.text)
+    if (!(slug in anchors)) anchors[slug] = anchors[heading.id]
   }
   return { blocks, headings, anchors, render(index: number) {
     const block = blocks[index]

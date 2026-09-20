@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import MarkdownPreview from '../components/MarkdownPreview.vue'
 import { enhanceMarkdown } from '../lib/markdown/enhance'
+import { open } from '@tauri-apps/plugin-shell'
 
 const cleanup = vi.hoisted(() => vi.fn())
 vi.mock('../lib/markdown/enhance', () => ({ enhanceMarkdown: vi.fn(() => cleanup) }))
@@ -11,6 +12,17 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 async function render() { await vi.runAllTimersAsync(); await flushPromises() }
 
 describe('Markdown preview', () => {
+  it('resolves local heading slugs and opens external fragment links', async () => {
+    const wrapper = mount(MarkdownPreview, { props: { filePath: '/a.md', content: '# Foo\n\n[local](#foo) [external](https://example.com/#heading-1)\n\n# Foo' } })
+    await render()
+    const scroll = vi.fn()
+    ;(wrapper.get('h1').element as HTMLElement).scrollIntoView = scroll
+    await wrapper.findAll('a')[0].trigger('click')
+    expect(scroll).toHaveBeenCalledWith({ block: 'start' })
+    await wrapper.findAll('a')[1].trigger('click')
+    expect(open).toHaveBeenCalledWith('https://example.com/#heading-1')
+    wrapper.unmount()
+  })
   it('renders headings, copies exact fenced source and resolves local images', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     vi.stubGlobal('navigator', { clipboard: { writeText } })

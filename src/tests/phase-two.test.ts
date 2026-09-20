@@ -66,6 +66,31 @@ describe('phase two fidelity and isolation', () => {
     expect(source.slice(mapped.start, mapped.end)).toBe('same** [link')
     expect(mapped.start).toBe(source.lastIndexOf('**same') + 2)
   })
+  it('maps formatted link text to its label rather than matching text in its destination', () => {
+    const source = '[**foo**bar](https://x/foobar)'
+    const root = document.createElement('article'); root.innerHTML = renderMarkdown(source).html; document.body.append(root)
+    const range = document.createRange(); range.selectNodeContents(root.querySelector('a')!)
+    window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range)
+    range.getBoundingClientRect = () => new DOMRect(0, 0, 20, 20)
+    expect(mapDomSelection(root, source)).toMatchObject({ text: 'foobar', start: 3, end: 11 })
+  })
+  it.each(['foo_bar', '`foo_bar`', '**foo_bar**'])('preserves literal underscores when mapping %s', source => {
+    const root = document.createElement('article'); root.innerHTML = renderMarkdown(source).html; document.body.append(root)
+    const range = document.createRange(); range.selectNodeContents(root.querySelector('p')!)
+    window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range)
+    range.getBoundingClientRect = () => new DOMRect(0, 0, 20, 20)
+    expect(mapDomSelection(root, source)).toMatchObject({ text: 'foo_bar', start: source.indexOf('foo_bar'), end: source.indexOf('foo_bar') + 7 })
+  })
+  it('assigns source lines to each slice of a long code block', () => {
+    const source = '```text\n' + 'abcdefghijk\n'.repeat(4000) + '```\n'
+    const doc = prepareMarkdown(source, true)
+    const target = doc.blocks.find(b => b.line <= 3000 && b.endLine > 3000)!
+    expect(doc.blocks.indexOf(target)).toBeGreaterThan(0)
+    for (const block of doc.blocks) {
+      expect(block.line).toBe(source.slice(0, block.start).split('\n').length)
+      expect(block.endLine).toBe(source.slice(0, block.end - 1).split('\n').length + 1)
+    }
+  })
   it('relocates duplicate comment contexts nearest their previous source position', () => {
     const repeated = 'A'.repeat(150) + 'target' + 'B'.repeat(150)
     const source = repeated + '\n' + repeated

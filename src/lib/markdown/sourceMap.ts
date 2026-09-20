@@ -2,7 +2,7 @@ import type { Selection } from '../../utils/selection'
 import { lineOffsets } from './renderer'
 // Match the visible text against its source block, never against the entire document.
 // Exclude link destinations, delimiters and decoded entities from the visible stream.
-export function visibleSourceMap(raw: string): { text: string; offsets: number[]; ends: number[] } {
+export function visibleSourceMap(raw: string, stripDelimiters = true): { text: string; offsets: number[]; ends: number[] } {
   let text = ''; const offsets: number[] = [], ends: number[] = []
   const append = (value: string, at: number) => { text += value; for (let j = 0; j < value.length; j++) { offsets.push(at + j); ends.push(at + j + 1) } }
   for (let i = 0; i < raw.length;) {
@@ -16,7 +16,7 @@ export function visibleSourceMap(raw: string): { text: string; offsets: number[]
       const match = raw.slice(i).match(/^&(?:#\d+|#x[\da-f]+|[a-z]+);/i)
       if (match) { const element = document.createElement('textarea'); element.innerHTML = match[0]; const value = element.value; text += value; offsets.push(...Array(value.length).fill(i)); ends.push(...Array(value.length).fill(i + match[0].length)); i += match[0].length; continue }
     }
-    if (/[*_`\[\]]/.test(raw[i])) { i++; continue }
+    if (stripDelimiters && /[*_`\[\]]/.test(raw[i])) { i++; continue }
     append(raw[i], i); i++
   }
   return { text, offsets, ends }
@@ -28,15 +28,18 @@ function endpoint(root: HTMLElement, node: Node, offset: number, source: string,
   const start = block.dataset.sourceStart ? Number(block.dataset.sourceStart) : lines[Number(block.dataset.sourceLine) - 1] || 0
   const next = Array.from(root.querySelectorAll<HTMLElement>('[data-source-line]')).find(e => Number(e.dataset.sourceLine) > Number(block.dataset.sourceLine))
   const stop = next ? lines[Number(next.dataset.sourceLine) - 1] : source.length
-  const raw = source.slice(start, stop), map = visibleSourceMap(raw)
+  const raw = source.slice(start, stop)
   const range = document.createRange(); range.selectNodeContents(block); range.setEnd(node, offset)
   const before = range.toString(), full = block.textContent || ''
-  const rawMatch = raw.indexOf(full)
-  if (rawMatch >= 0 && full) return start + rawMatch + before.length
-  const match = map.text.indexOf(full)
-  if (match >= 0) {
-    const position = match + before.length
-    return start + (end && position > 0 ? (map.ends[position - 1] ?? raw.length) : map.offsets[position] ?? raw.length)
+  if (block.hasAttribute('data-source-start')) return start + before.length
+  // Literal delimiters (for example foo_bar) may survive Markdown rendering.
+  // Both passes exclude link destinations; neither searches arbitrary raw source.
+  for (const stripDelimiters of [true, false]) {
+    const map = visibleSourceMap(raw, stripDelimiters), match = map.text.indexOf(full)
+    if (match >= 0 && full) {
+      const position = match + before.length
+      return start + (end && position > 0 ? (map.ends[position - 1] ?? raw.length) : map.offsets[position] ?? raw.length)
+    }
   }
   // Nonliteral rendered nodes (math/SVG, generated controls) must not create guessed anchors.
   return null
