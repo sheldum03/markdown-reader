@@ -15,34 +15,31 @@
           <option value="en">English</option>
           <option value="zh-CN">中文</option>
         </select>
-        <button
+        <IconButton
+          icon="help"
+          :label="t('quickStart')"
           class="apple-utility-button apple-nav-secondary"
-          :aria-label="t('quickStart')"
           @click="showGettingStarted = true"
-        >
-          {{ t('quickStart') }}
-        </button>
-        <button v-if="workspace.folderPath" class="apple-utility-button apple-nav-secondary" @click="showMcp = !showMcp">MCP</button>
+        />
+        <IconButton v-if="workspace.folderPath" icon="connection" label="MCP" class="apple-utility-button apple-nav-secondary" @click="showMcp = !showMcp" />
         <details v-if="workspace.folderPath" class="apple-nav-document-tools relative">
-          <summary class="apple-utility-button cursor-pointer list-none">
-            {{ t('documentTools') }}
-          </summary>
+          <summary class="icon-disclosure apple-utility-button cursor-pointer list-none" :title="t('documentTools')" :aria-label="t('documentTools')"><AppIcon name="tools" /><span class="sr-only">{{ t('documentTools') }}</span></summary>
           <div class="apple-modal absolute right-0 z-30 mt-2 w-[44rem] max-w-[calc(100vw-2rem)] p-4">
             <div class="flex flex-wrap gap-2">
-        <button
+        <IconButton
+          icon="find-file"
+          :label="t('findFiles')"
           @click="openSearch('files')"
           class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
           :disabled="isMarkdownTranslating"
-        >
-          {{ t('findFiles') }}
-        </button>
-        <button
+        />
+        <IconButton
+          icon="search"
+          :label="t('searchContent')"
           @click="openSearch('content')"
           class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
           :disabled="isMarkdownTranslating"
-        >
-          {{ t('searchContent') }}
-        </button>
+        />
         <select
           v-model="htmlGenerationMode"
           class="px-2 py-1 text-sm bg-gray-100 text-gray-700 rounded"
@@ -63,14 +60,14 @@
           />
           {{ t('includeMarkdown') }}
         </label>
-        <button
+        <IconButton
+          icon="export"
+          :label="isExporting ? t('exporting') : htmlGenerationMode === 'ai-reading' ? t('createReadingVersion') : t('exportHtml')"
           @click="generateHtml"
           class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
           :disabled="!currentIsMarkdown || isExporting || (htmlGenerationMode === 'ai-reading' && !assistantServiceReady)"
           :title="htmlGenerationMode === 'ai-reading' ? assistantDisabledReason : ''"
-        >
-          {{ isExporting ? t('exporting') : htmlGenerationMode === 'ai-reading' ? t('createReadingVersion') : t('exportHtml') }}
-        </button>
+        />
         <select
           v-model="translationService"
           @change="handleTranslationServiceChange"
@@ -81,36 +78,36 @@
           <option value="tencent">Tencent Translate</option>
           <option value="openai-compatible">OpenAI-compatible</option>
         </select>
-        <button
+        <IconButton
+          icon="settings"
+          :label="t('modelSettings')"
+          :aria-label="t('configureModel')"
           @click="openAiConfigOpen = !openAiConfigOpen"
           class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-          :aria-label="t('configureModel')"
-        >
-          {{ t('modelSettings') }}
-        </button>
-        <button
+        />
+        <IconButton
+          icon="translate"
+          :label="isMarkdownTranslating ? t('translating') : t('translateChineseCopy')"
           @click="translateMarkdownFile"
           class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
           :disabled="!currentIsMarkdown || isMarkdownTranslating || (translationService === 'openai-compatible' && !openAiConfigComplete)"
-        >
-          {{ isMarkdownTranslating ? t('translating') : t('translateChineseCopy') }}
-        </button>
-        <button
+        />
+        <IconButton
+          icon="comment"
+          :label="isAssistantRunning && assistantMode === 'suggestions' ? t('reviewing') : t('suggestFromComments')"
           @click="runDocumentAssistant('suggestions')"
           class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
           :disabled="!currentIsMarkdown || !comments.list.length || isAssistantRunning || !assistantServiceReady"
           :title="assistantDisabledReason"
-        >
-          {{ isAssistantRunning && assistantMode === 'suggestions' ? t('reviewing') : t('suggestFromComments') }}
-        </button>
-        <button
+        />
+        <IconButton
+          icon="improve"
+          :label="isAssistantRunning && assistantMode === 'optimize' ? t('improving') : t('improveDocument')"
           @click="runDocumentAssistant('optimize')"
           class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
           :disabled="!currentIsMarkdown || isAssistantRunning || !assistantServiceReady"
           :title="assistantDisabledReason"
-        >
-          {{ isAssistantRunning && assistantMode === 'optimize' ? t('improving') : t('improveDocument') }}
-        </button>
+        />
             </div>
           </div>
         </details>
@@ -126,7 +123,7 @@
     <section v-if="showMcp && workspace.folderPath" class="apple-panel p-4 border-b text-sm">
       <p>将此配置加入 MCP 客户端。仅授权当前工作区，默认只读；服务访问磁盘文件，不读取未保存草稿。</p>
       <label><input v-model="mcpWritable" type="checkbox" @change="loadMcpConfig" /> 允许客户端写入此工作区的已有文档（需匹配文件版本）</label>
-      <button class="ml-4" @click="loadMcpConfig">生成配置</button>
+      <IconButton class="ml-4" icon="config" label="生成配置" @click="loadMcpConfig" />
       <pre class="text-xs whitespace-pre-wrap">{{ mcpConfig }}</pre>
     </section>
 
@@ -163,7 +160,7 @@
       <div class="max-w-4xl space-y-2">
         <div class="flex items-center justify-between">
           <div class="text-sm font-medium text-gray-800">{{ t('modelSettingsTitle') }}</div>
-          <button class="text-xs text-gray-500 hover:text-gray-700" @click="openAiConfigOpen = false">{{ t('close') }}</button>
+          <IconButton class="text-gray-500 hover:text-gray-700" icon="close" :label="t('close')" @click="openAiConfigOpen = false" />
         </div>
         <div class="grid gap-2 md:grid-cols-3">
           <label class="text-xs text-gray-600">
@@ -202,27 +199,27 @@
           <option v-for="model in openAiModels" :key="model" :value="model" />
         </datalist>
         <div class="flex flex-wrap gap-2">
-          <button
+          <IconButton
+            icon="save"
+            :label="t('saveSettings')"
             class="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
             :disabled="!openAiConnectionConfigComplete"
             @click="saveOpenAiConfiguration"
-          >
-            {{ t('saveSettings') }}
-          </button>
-          <button
+          />
+          <IconButton
+            icon="link"
+            :label="isTestingOpenAiConnection ? t('testing') : t('testConnection')"
             class="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
             :disabled="!openAiConnectionConfigComplete || isTestingOpenAiConnection"
             @click="testOpenAiConnection"
-          >
-            {{ isTestingOpenAiConnection ? t('testing') : t('testConnection') }}
-          </button>
-          <button
+          />
+          <IconButton
+            icon="refresh"
+            :label="isLoadingOpenAiModels ? t('loading') : t('loadModels')"
             class="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
             :disabled="!openAiConnectionConfigComplete || isLoadingOpenAiModels"
             @click="loadOpenAiModels"
-          >
-            {{ isLoadingOpenAiModels ? t('loading') : t('loadModels') }}
-          </button>
+          />
         </div>
         <p class="text-xs text-gray-500">
           {{ t('modelSettingsHelp') }}
@@ -234,7 +231,7 @@
         </p>
         <p v-if="permanentAssistantWritePermission" class="text-xs text-amber-700">
           {{ t('permanentPermission', { scope: assistantWritePermissionScopeLabel }) }}
-          <button class="underline" @click="setPermanentAssistantWritePermission(false)">{{ t('revokePermission') }}</button>
+          <IconButton class="underline" icon="unlock" :label="t('revokePermission')" @click="setPermanentAssistantWritePermission(false)" />
         </p>
       </div>
     </section>
@@ -243,54 +240,55 @@
       <aside
         v-if="workspace.folderPath"
         v-show="!focusMode"
-        class="w-64 bg-white border-r border-gray-200 overflow-auto"
+        class="apple-workspace-sidebar bg-white border-r border-gray-200 overflow-auto"
+        :style="{ '--workspace-sidebar-width': `${workspaceSidebarWidth}px` }"
       >
         <div class="p-2 border-b border-gray-200 space-y-2">
           <div class="flex gap-1">
-            <button
+            <IconButton
+              icon="all-files"
+              :label="t('allFiles')"
               class="px-2 py-1 text-xs rounded"
               :class="fileFilter === 'all' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'"
               @click="fileFilter = 'all'"
-            >
-              {{ t('allFiles') }}
-            </button>
-            <button
+            />
+            <IconButton
+              icon="markdown"
+              :label="t('markdown')"
               class="px-2 py-1 text-xs rounded"
               :class="fileFilter === 'markdown' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'"
               @click="fileFilter = 'markdown'"
-            >
-              {{ t('markdown') }}
-            </button>
-            <button
+            />
+            <IconButton
+              icon="html"
+              :label="t('html')"
               class="px-2 py-1 text-xs rounded"
               :class="fileFilter === 'html' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'"
               @click="fileFilter = 'html'"
-            >
-              {{ t('html') }}
-            </button>
+            />
           </div>
           <div class="flex gap-1">
-            <button
+            <IconButton
+              icon="locate"
+              :label="t('locateCurrentFile')"
               class="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
               :disabled="!workspace.currentFile"
               @click="locateCurrentFile"
-            >
-              {{ t('locateCurrentFile') }}
-            </button>
-            <button
+            />
+            <IconButton
+              icon="titles"
+              :label="displayMode === 'filename' ? t('showTitles') : t('showFileNames')"
               class="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
               @click="toggleDisplayMode"
-            >
-              {{ displayMode === 'filename' ? t('showTitles') : t('showFileNames') }}
-            </button>
+            />
           </div>
-          <button
+          <IconButton
+            icon="outline"
+            :label="outlineOpen && currentIsMarkdown ? t('hideOutline') : t('showOutline')"
             class="w-full px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
             :disabled="!currentIsMarkdown"
             @click="outlineOpen = !outlineOpen"
-          >
-            {{ outlineOpen && currentIsMarkdown ? t('hideOutline') : t('showOutline') }}
-          </button>
+          />
         </div>
         <FileTree
           :files="workspace.files"
@@ -302,6 +300,19 @@
           @select="openFile"
         />
       </aside>
+      <div
+        v-if="workspace.folderPath && !focusMode"
+        class="sidebar-resize-handle sidebar-resize-handle-left"
+        role="separator"
+        tabindex="0"
+        aria-label="调整文件侧边栏宽度"
+        aria-orientation="vertical"
+        :aria-valuemin="WORKSPACE_SIDEBAR_MIN"
+        :aria-valuemax="WORKSPACE_SIDEBAR_MAX"
+        :aria-valuenow="workspaceSidebarWidth"
+        @pointerdown="startSidebarResize('workspace', $event)"
+        @keydown="resizeSidebarWithKeyboard('workspace', $event)"
+      />
 
       <aside
         v-if="outlineOpen && currentIsMarkdown && !focusMode"
@@ -366,7 +377,7 @@
           <nav role="tablist" aria-label="文档标签" class="flex shrink-0 overflow-x-auto border-b bg-[#fafafc] px-2 pt-2">
             <div v-for="tab in workspace.tabs" :key="tab.path" class="flex items-center gap-2 rounded-t-lg px-3 py-2 text-sm" :class="{ 'bg-white border border-b-white border-gray-200': tab.path === workspace.currentFile?.path }">
               <button role="tab" :aria-selected="tab.path === workspace.currentFile?.path" @click="openFile(tab.path)">{{ tab.path.split('/').pop() }}{{ tab.draft !== undefined && tab.draft !== tab.content ? ' ●' : '' }}</button>
-              <button :aria-label="'关闭 ' + tab.path.split('/').pop()" @click="closeTab(tab.path)">×</button>
+              <IconButton icon="close" :label="'关闭 ' + tab.path.split('/').pop()" @click="closeTab(tab.path)" />
             </div>
           </nav>
           <div v-for="tab in workspace.tabs" v-show="tab.path === workspace.currentFile?.path" :data-active-document="tab.path === workspace.currentFile?.path" :key="tab.path" class="flex-1 min-h-0 overflow-hidden">
@@ -379,9 +390,23 @@
         </div>
       </section>
 
+      <div
+        v-if="showDocumentSidebar"
+        class="sidebar-resize-handle sidebar-resize-handle-right"
+        role="separator"
+        tabindex="0"
+        aria-label="调整文档工具侧边栏宽度"
+        aria-orientation="vertical"
+        :aria-valuemin="DOCUMENT_SIDEBAR_MIN"
+        :aria-valuemax="DOCUMENT_SIDEBAR_MAX"
+        :aria-valuenow="documentSidebarWidth"
+        @pointerdown="startSidebarResize('document', $event)"
+        @keydown="resizeSidebarWithKeyboard('document', $event)"
+      />
       <aside
         v-if="showDocumentSidebar"
-        class="apple-document-sidebar w-[22rem] shrink-0 overflow-hidden border-l border-gray-200 bg-white"
+        class="apple-document-sidebar shrink-0 overflow-hidden border-l border-gray-200 bg-white"
+        :style="{ '--document-sidebar-width': `${documentSidebarWidth}px` }"
         aria-label="Document tools"
       >
         <div class="apple-document-sidebar-tabs" role="tablist" :aria-label="t('documentTools')">
@@ -464,7 +489,7 @@
             <p class="text-sm font-medium text-blue-700">{{ t('quickStartLabel') }}</p>
             <h2 class="mt-1 text-xl font-semibold text-slate-900">{{ t('quickStartTitle') }}</h2>
           </div>
-          <button class="text-sm text-slate-500 hover:text-slate-800" @click="showGettingStarted = false">{{ t('close') }}</button>
+          <IconButton class="text-slate-500 hover:text-slate-800" icon="close" :label="t('close')" @click="showGettingStarted = false" />
         </div>
         <ol class="mt-5 space-y-4 text-sm leading-6 text-slate-700">
           <li><strong>1.</strong> {{ t('quickStartStepOne') }}</li>
@@ -488,7 +513,7 @@
             <p class="text-sm font-medium text-blue-700">{{ t('privacyLabel') }}</p>
             <h2 class="mt-1 text-xl font-semibold text-slate-900">{{ t('privacyTitle') }}</h2>
           </div>
-          <button class="text-sm text-slate-500 hover:text-slate-800" @click="showTrustInfo = false">{{ t('close') }}</button>
+          <IconButton class="text-slate-500 hover:text-slate-800" icon="close" :label="t('close')" @click="showTrustInfo = false" />
         </div>
         <div class="mt-5 space-y-4 text-sm leading-6 text-slate-700">
           <p>{{ t('privacyLocal') }}</p>
@@ -508,6 +533,8 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ask, open, save } from '@tauri-apps/plugin-dialog'
 import { useWorkspaceStore } from './stores/workspace'
 import { useCommentsStore } from './stores/comments'
+import AppIcon from './components/AppIcon.vue'
+import IconButton from './components/IconButton.vue'
 import FileTree from './components/FileTree.vue'
 import HtmlRenderer from './components/HtmlRenderer.vue'
 import YamlEditor from './components/YamlEditor.vue'
@@ -607,6 +634,16 @@ const locateToken = ref(0)
 const outlineOpen = ref(false)
 const documentHeadings = ref<OutlineHeading[]>([])
 const focusMode = ref(false)
+const WORKSPACE_SIDEBAR_MIN = 208
+const WORKSPACE_SIDEBAR_MAX = 416
+const DOCUMENT_SIDEBAR_MIN = 288
+const DOCUMENT_SIDEBAR_MAX = 560
+type ResizableSidebar = 'workspace' | 'document'
+const sidebarStorageKey = 'md-html-reader.sidebar-widths'
+const sidebarWidths = readSidebarWidths()
+const workspaceSidebarWidth = ref(sidebarWidths.workspace)
+const documentSidebarWidth = ref(sidebarWidths.document)
+let removeSidebarResizeListeners: (() => void) | null = null
 const activeSidebarPanel = ref<SidebarPanel>('comments')
 const commentDraft = ref<PendingComment | null>(null)
 watch(() => workspace.currentFile?.path, path => {
@@ -739,6 +776,74 @@ function readOpenAiSetting(name: 'baseUrl' | 'model') {
   } catch {
     return ''
   }
+}
+
+function readSidebarWidths() {
+  const fallback = { workspace: 256, document: 352 }
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(sidebarStorageKey) || '')
+    return {
+      workspace: clampSidebarWidth(stored.workspace, WORKSPACE_SIDEBAR_MIN, WORKSPACE_SIDEBAR_MAX, fallback.workspace),
+      document: clampSidebarWidth(stored.document, DOCUMENT_SIDEBAR_MIN, DOCUMENT_SIDEBAR_MAX, fallback.document),
+    }
+  } catch {
+    return fallback
+  }
+}
+
+function clampSidebarWidth(value: unknown, min: number, max: number, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, Math.round(value))) : fallback
+}
+
+function persistSidebarWidths() {
+  try {
+    window.localStorage.setItem(sidebarStorageKey, JSON.stringify({ workspace: workspaceSidebarWidth.value, document: documentSidebarWidth.value }))
+  } catch {
+    // Keep the active-session widths when browser storage is unavailable.
+  }
+}
+
+function resizeSidebar(kind: ResizableSidebar, width: number) {
+  if (kind === 'workspace') {
+    workspaceSidebarWidth.value = clampSidebarWidth(width, WORKSPACE_SIDEBAR_MIN, WORKSPACE_SIDEBAR_MAX, workspaceSidebarWidth.value)
+  } else {
+    documentSidebarWidth.value = clampSidebarWidth(width, DOCUMENT_SIDEBAR_MIN, DOCUMENT_SIDEBAR_MAX, documentSidebarWidth.value)
+  }
+}
+
+function startSidebarResize(kind: ResizableSidebar, event: PointerEvent) {
+  if (event.button !== 0) return
+  removeSidebarResizeListeners?.()
+  event.preventDefault()
+  const startX = event.clientX
+  const startWidth = kind === 'workspace' ? workspaceSidebarWidth.value : documentSidebarWidth.value
+  const onMove = (move: PointerEvent) => resizeSidebar(kind, startWidth + (kind === 'workspace' ? move.clientX - startX : startX - move.clientX))
+  const onEnd = () => {
+    removeSidebarResizeListeners?.()
+    persistSidebarWidths()
+  }
+  window.addEventListener('pointermove', onMove)
+  window.addEventListener('pointerup', onEnd, { once: true })
+  removeSidebarResizeListeners = () => {
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onEnd)
+    removeSidebarResizeListeners = null
+  }
+}
+
+function resizeSidebarWithKeyboard(kind: ResizableSidebar, event: KeyboardEvent) {
+  const increase = kind === 'workspace' ? 'ArrowRight' : 'ArrowLeft'
+  const decrease = kind === 'workspace' ? 'ArrowLeft' : 'ArrowRight'
+  const min = kind === 'workspace' ? WORKSPACE_SIDEBAR_MIN : DOCUMENT_SIDEBAR_MIN
+  const max = kind === 'workspace' ? WORKSPACE_SIDEBAR_MAX : DOCUMENT_SIDEBAR_MAX
+  const current = kind === 'workspace' ? workspaceSidebarWidth.value : documentSidebarWidth.value
+  if (event.key === 'Home') resizeSidebar(kind, min)
+  else if (event.key === 'End') resizeSidebar(kind, max)
+  else if (event.key === increase) resizeSidebar(kind, current + 16)
+  else if (event.key === decrease) resizeSidebar(kind, current - 16)
+  else return
+  event.preventDefault()
+  persistSidebarWidths()
 }
 
 function persistOpenAiSettings() {
@@ -1364,6 +1469,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   appUnmounted = true
+  removeSidebarResizeListeners?.()
   window.removeEventListener('keydown', handleKeyDown)
   unlistenCloseRequested?.()
 })

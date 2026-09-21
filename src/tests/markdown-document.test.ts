@@ -32,6 +32,9 @@ describe('Markdown document modes', () => {
     const { wrapper, click } = setup()
     await click('分屏')
     expect(harness.mounted).toHaveBeenCalledTimes(1)
+    const preview = wrapper.get('[data-preview]').element
+    const editor = wrapper.get('[data-editor]').element
+    expect(Boolean(preview.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
     await click('change')
     expect(wrapper.get('[data-preview]').text()).toBe('updated')
     await click('阅读')

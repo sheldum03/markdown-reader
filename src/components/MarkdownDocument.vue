@@ -3,17 +3,17 @@
     <div class="document-toolbar flex items-center gap-3 px-4 border-b border-gray-200 bg-white">
       <span class="text-sm text-gray-600 truncate flex-1" :title="file.path">{{ file.path.split('/').pop() }}</span>
       <div class="document-modes" role="group" aria-label="文档模式">
-        <button v-for="item in modes" :key="item.value" :aria-pressed="mode === item.value" :disabled="switching" @click="setMode(item.value)">{{ item.label }}</button>
+        <IconButton v-for="item in modes" :key="item.value" :icon="item.icon" :label="item.label" :aria-pressed="mode === item.value" :disabled="switching" @click="setMode(item.value)" />
       </div>
-      <button :disabled="!richSupported" :title="richSupported ? '' : '此文档使用保真源码编辑，支持全部扩展语法和大文档'" class="apple-toolbar-link text-xs" @click="toggleEditor">{{ editorKind === 'source' ? '富文本编辑' : '源码编辑' }}</button>
-      <button class="apple-toolbar-link text-xs" :aria-pressed="focused" @click="focused = !focused; emit('focus', focused)">{{ focused ? '退出专注' : '专注阅读' }}</button>
+      <IconButton :disabled="!richSupported" :title="richSupported ? '' : '此文档使用保真源码编辑，支持全部扩展语法和大文档'" :icon="editorKind === 'source' ? 'markdown' : 'code'" :label="editorKind === 'source' ? '富文本编辑' : '源码编辑'" :aria-pressed="editorKind === 'rich'" @click="toggleEditor" />
+      <IconButton :icon="focused ? 'unfocus' : 'focus'" :label="focused ? '退出专注' : '专注阅读'" :aria-pressed="focused" @click="focused = !focused; emit('focus', focused)" />
     </div>
     <p v-if="modeError" role="alert" class="px-4 py-2 text-sm text-red-600">{{ modeError }}</p>
     <div class="flex-1 min-h-0 min-w-0 flex">
-      <div v-if="editorStarted" v-show="mode !== 'read'" class="flex-1 min-w-0 overflow-hidden" :class="{ 'border-r border-gray-200': mode === 'split' }">
+      <MarkdownPreview v-show="mode !== 'edit'" ref="preview" class="flex-1 min-w-0" :content="previewDraft" :file-path="file.path" @headings="emit('headings', $event)" @scroll="syncEditor" @start-comment="forwardComment" @translate="emit('translate', $event)" />
+      <div v-if="editorStarted" v-show="mode !== 'read'" class="flex-1 min-w-0 overflow-hidden" :class="{ 'border-l border-gray-200': mode === 'split' }">
         <component :is="editorKind === 'source' ? SourceEditor : MilkdownEditor" ref="editor" :file="file" :save-content="saveContent" @change="draft = $event; emit('change', $event)" @scroll="syncPreview" @start-comment="forwardComment" @translate="emit('translate', $event)" />
       </div>
-      <MarkdownPreview v-show="mode !== 'edit'" ref="preview" class="flex-1 min-w-0" :content="previewDraft" :file-path="file.path" @headings="emit('headings', $event)" @scroll="syncEditor" @start-comment="forwardComment" @translate="emit('translate', $event)" />
     </div>
     <div class="document-status px-4 py-1 border-t border-gray-100 text-xs text-gray-400 flex gap-4">
       <span>{{ stats.characters.toLocaleString() }} 字符</span><span>{{ stats.lines.toLocaleString() }} 行</span><span>约 {{ stats.minutes }} 分钟阅读</span>
@@ -25,6 +25,8 @@
 <script setup lang="ts">
 import { ref, computed, defineAsyncComponent, h, watch } from 'vue'
 import MarkdownPreview from './MarkdownPreview.vue'
+import IconButton from './IconButton.vue'
+import type { IconName } from '../lib/icons'
 import type { OutlineHeading } from '../lib/markdown/renderer'
 import type { Selection } from '../utils/selection'
 import type { createAnchor } from '../utils/comment-anchor'
@@ -55,7 +57,7 @@ type EditorHandle = {
   scrollToLine?: (line: number) => void
   scrollToHeading: (text: string, level: number, line?: number) => void
 }
-const modes: { value: Mode; label: string }[] = [{ value: 'read', label: '阅读' }, { value: 'edit', label: '编辑' }, { value: 'split', label: '分屏' }]
+const modes: { value: Mode; label: string; icon: IconName }[] = [{ value: 'read', label: '阅读', icon: 'read' }, { value: 'edit', label: '编辑', icon: 'code' }, { value: 'split', label: '分屏', icon: 'split' }]
 const mode = ref<Mode>('read')
 const editorStarted = ref(false)
 const editor = ref<EditorHandle | null>(null)

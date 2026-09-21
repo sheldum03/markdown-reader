@@ -5,9 +5,7 @@
         {{ t('translation') }}
         <span class="text-xs text-gray-400 ml-1">{{ serviceLabel }}</span>
       </div>
-      <button class="text-xs text-gray-400 hover:text-gray-600" @click="emit('close')">
-        {{ t('close') }}
-      </button>
+      <IconButton class="text-gray-400 hover:text-gray-600" icon="close" :label="t('close')" @click="emit('close')" />
     </div>
 
     <div class="min-h-0 flex-1 overflow-auto p-4">
@@ -32,12 +30,7 @@
           <div class="whitespace-pre-wrap rounded-[11px] bg-blue-50 p-3 text-sm leading-6 text-gray-900">
             {{ translated }}
           </div>
-          <button
-            class="apple-primary-button text-xs"
-            @click="copyTranslated"
-          >
-            {{ t('copyTranslation') }}
-          </button>
+          <IconButton class="apple-primary-button text-xs" icon="copy" :label="t('copyTranslation')" @click="copyTranslated" />
         </div>
       </div>
     </div>
@@ -46,6 +39,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import IconButton from './IconButton.vue'
 import { t } from '../i18n'
 
 type TranslationState = 'idle' | 'loading' | 'success' | 'error'

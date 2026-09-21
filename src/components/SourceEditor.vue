@@ -1,25 +1,25 @@
 <template>
   <div class="source-editor h-full flex flex-col bg-white">
-    <div class="flex items-center gap-3 px-4 py-2 border-b text-sm">
+    <div class="relative flex items-center gap-3 px-4 py-2 border-b text-sm">
       <span class="flex-1">CodeMirror 保真源码 <span v-if="dirty">未保存</span></span>
       <span v-if="saving">{{ t('saving') }}</span><span v-else-if="saved">{{ t('savedJustNow') }}</span><span v-if="error" role="alert" class="text-red-600">{{ error }}</span>
-      <button @click="saveCurrentContent().catch(() => {})">{{ t('save') }}</button>
-      <button :disabled="formatting" @click="previewFormat">{{ formatting ? '格式化中…' : 'CJK 格式预览' }}</button>
-      <button @click="view && undo(view)">撤销</button>
+      <IconButton icon="save" :label="t('save')" @click="saveCurrentContent().catch(() => {})" />
+      <IconButton icon="format" :label="formatting ? '格式化中…' : 'CJK 格式预览'" :disabled="formatting" @click="previewFormat" />
+      <IconButton icon="undo" label="撤销" @click="view && undo(view)" />
+      <details class="text-xs">
+        <summary class="icon-disclosure" title="CJK 规则设置" aria-label="CJK 规则设置"><AppIcon name="settings" /><span class="sr-only">CJK 规则设置</span></summary>
+        <div class="absolute right-0 top-full z-30 mt-2 grid max-h-[60vh] w-[32rem] max-w-full grid-cols-2 gap-3 overflow-auto rounded-[14px] border bg-white p-4">
+          <label v-for="item in formatOptions" :key="item.key"><input type="checkbox" :checked="formatSettings[item.key]" @change="formatSettings[item.key] = ($event.target as HTMLInputElement).checked" /> {{ item.label }}</label>
+          <label>引号样式 <select v-model="formatSettings.quoteStyle"><option value="curly">弯引号</option><option value="corner">直角引号</option><option value="guillemets">书名式引号</option></select></label>
+          <label>重复标点上限 <select v-model.number="formatSettings.consecutivePunctuationLimit"><option :value="0">保持原文</option><option :value="1">1</option><option :value="2">2</option></select></label>
+        </div>
+      </details>
     </div>
-    <details class="border-b px-4 py-1 text-xs">
-      <summary>CJK 规则设置</summary>
-      <div class="grid grid-cols-3 gap-2 p-2">
-        <label v-for="item in formatOptions" :key="item.key"><input type="checkbox" :checked="formatSettings[item.key]" @change="formatSettings[item.key] = ($event.target as HTMLInputElement).checked" /> {{ item.label }}</label>
-        <label>引号样式 <select v-model="formatSettings.quoteStyle"><option value="curly">弯引号</option><option value="corner">直角引号</option><option value="guillemets">书名式引号</option></select></label>
-        <label>重复标点上限 <select v-model.number="formatSettings.consecutivePunctuationLimit"><option :value="0">保持原文</option><option :value="1">1</option><option :value="2">2</option></select></label>
-      </div>
-    </details>
     <div v-if="formatPreview !== null" class="p-3 border-b bg-slate-50 max-h-64 overflow-auto">
       <p>预览格式化结果；确认后可用撤销恢复。</p>
       <pre class="text-xs whitespace-pre-wrap">{{ formatPreview.slice(0, 12000) }}</pre>
       <p v-if="formatPreview.length > 12000">预览显示前 12,000 字符；应用将处理全文。</p>
-      <button class="mr-4 text-blue-600" @click="applyFormat">应用格式</button><button @click="formatPreview = null">取消</button>
+      <IconButton class="mr-2 text-blue-600" icon="check" label="应用格式" @click="applyFormat" /><IconButton icon="close" label="取消" @click="formatPreview = null" />
     </div>
     <div ref="host" class="flex-1 min-h-0 overflow-hidden" />
     <CommentTooltip :show="!!selection" :selection="selection" @start-comment="startComment" @translate="emit('translate', $event)" @close="selection = null" />
@@ -27,6 +27,8 @@
 </template>
 <script setup lang="ts">
 import { ref, shallowRef, onMounted, onBeforeUnmount, computed, reactive } from 'vue'
+import IconButton from './IconButton.vue'
+import AppIcon from './AppIcon.vue'
 import { EditorState, Transaction } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers, highlightActiveLine } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, undo } from '@codemirror/commands'

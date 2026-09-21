@@ -10,7 +10,7 @@
             {{ mode === 'suggestions' ? t('suggestionsHelp') : t('draftHelp') }}
           </p>
         </div>
-        <button class="text-sm text-gray-500 hover:text-gray-700" @click="$emit('close')">{{ t('close') }}</button>
+        <IconButton class="text-gray-500 hover:text-gray-700" icon="close" :label="t('close')" @click="$emit('close')" />
       </header>
 
       <div v-if="mode === 'suggestions'" class="p-5">
@@ -37,13 +37,13 @@
           />
           {{ t('permanentWritePermission', { scope: permissionScope }) }}
         </label>
-        <button
+        <IconButton
+          icon="improve"
+          :label="applying ? t('applying') : t('applyAiDraft')"
           class="apple-primary-button disabled:opacity-50"
           :disabled="applying"
           @click="$emit('apply')"
-        >
-          {{ applying ? t('applying') : t('applyAiDraft') }}
-        </button>
+        />
       </footer>
     </section>
   </div>
@@ -51,6 +51,7 @@
 
 <script setup lang="ts">
 import { t } from '../i18n'
+import IconButton from './IconButton.vue'
 
 defineProps<{
   mode: 'suggestions' | 'optimize'

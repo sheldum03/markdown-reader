@@ -9,18 +9,8 @@
       }"
     >
       <div class="flex gap-2">
-        <button
-          @click="startComment"
-          class="apple-primary-button text-sm"
-        >
-          <span>{{ t('addComment') }}</span>
-        </button>
-        <button
-          @click="handleTranslate"
-          class="apple-secondary-button text-sm"
-        >
-          <span>{{ t('translate') }}</span>
-        </button>
+        <IconButton icon="comment" :label="t('addComment')" class="apple-primary-button text-sm" @click="startComment" />
+        <IconButton icon="translate" :label="t('translate')" class="apple-secondary-button text-sm" @click="handleTranslate" />
       </div>
     </div>
   </Teleport>
@@ -28,6 +18,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import IconButton from './IconButton.vue'
 import type { Selection } from '../utils/selection'
 import { t } from '../i18n'
 

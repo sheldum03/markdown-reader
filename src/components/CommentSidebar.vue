@@ -12,14 +12,14 @@
         autofocus
       />
       <div class="mt-3 flex justify-end gap-2">
-        <button class="apple-secondary-button text-xs" @click="emit('cancel')">{{ t('cancel') }}</button>
-        <button
+        <IconButton icon="close" :label="t('cancel')" class="apple-secondary-button text-xs" @click="emit('cancel')" />
+        <IconButton
+          icon="send"
+          :label="t('submit')"
           class="apple-primary-button text-xs disabled:cursor-not-allowed disabled:opacity-50"
           :disabled="submitting || !draftContent.trim()"
           @click="submitComment"
-        >
-          {{ t('submit') }}
-        </button>
+        />
       </div>
     </section>
 
@@ -36,7 +36,7 @@
           class="comment-card rounded-[18px] border border-gray-200 bg-white p-4"
           :class="{ 'opacity-50': comment.status === 'resolved' }"
         >
-          <button @click="emit('locate', comment.id)" class="text-xs text-blue-600 hover:text-blue-700">定位原文</button>
+          <IconButton icon="locate" label="定位原文" class="text-blue-600 hover:text-blue-700" @click="emit('locate', comment.id)" />
           <div class="comment-quote mb-2 text-xs italic text-gray-500">
             "{{ comment.anchor.quote }}"
           </div>
@@ -48,19 +48,19 @@
           <div class="comment-meta flex items-center justify-between text-xs text-gray-400">
             <span>{{ formatTime(comment.createdAt) }}</span>
             <div class="flex gap-2">
-              <button
+              <IconButton
                 v-if="comment.status === 'open'"
-                @click="emit('resolve', comment.id)"
+                icon="check"
+                :label="t('resolve')"
                 class="text-green-600 hover:text-green-700"
-              >
-                {{ t('resolve') }}
-              </button>
-              <button
-                @click="emit('delete', comment.id)"
+                @click="emit('resolve', comment.id)"
+              />
+              <IconButton
+                icon="delete"
+                :label="t('delete')"
                 class="text-red-600 hover:text-red-700"
-              >
-                {{ t('delete') }}
-              </button>
+                @click="emit('delete', comment.id)"
+              />
             </div>
           </div>
         </div>
@@ -71,6 +71,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import IconButton from './IconButton.vue'
 import type { Comment } from '../stores/comments'
 import type { CommentAnchor } from '../utils/comment-anchor'
 import { locale, t } from '../i18n'

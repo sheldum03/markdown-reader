@@ -5,19 +5,19 @@
         {{ fileName }}
       </span>
 
-      <button
+      <IconButton
+        icon="preview"
+        :label="isOpeningFullPreview ? t('opening') : t('openFullPreview')"
         @click="openFullPreview"
         :disabled="isOpeningFullPreview"
         class="apple-primary-button disabled:opacity-50"
-      >
-        {{ isOpeningFullPreview ? t('opening') : t('openFullPreview') }}
-      </button>
-      <button
+      />
+      <IconButton
+        icon="refresh"
+        :label="showStaticPreview ? t('closeSafePreview') : t('safePreview')"
         @click="showStaticPreview = !showStaticPreview"
         class="apple-secondary-button"
-      >
-        {{ showStaticPreview ? t('closeSafePreview') : t('safePreview') }}
-      </button>
+      />
     </div>
 
     <div
@@ -43,13 +43,13 @@
         <p class="text-sm">
           {{ t('fullPreviewDetails') }}
         </p>
-        <button
+        <IconButton
+          icon="preview"
+          :label="isOpeningFullPreview ? t('opening') : t('openFullPreview')"
           @click="openFullPreview"
           :disabled="isOpeningFullPreview"
           class="apple-primary-button disabled:opacity-50"
-        >
-          {{ isOpeningFullPreview ? t('opening') : t('openFullPreview') }}
-        </button>
+        />
       </div>
     </div>
   </div>
@@ -57,6 +57,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import IconButton from './IconButton.vue'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { t } from '../i18n'

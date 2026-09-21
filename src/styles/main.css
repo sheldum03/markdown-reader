@@ -353,12 +353,13 @@
 }
 
 #app .document-modes button {
-  min-height: 28px;
+  min-width: 44px;
+  min-height: 44px;
   border: 0;
   border-radius: 9999px;
   background: transparent;
   color: #424245;
-  padding: 4px 10px;
+  padding: 10px;
   font-size: 12px;
   transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
 }
@@ -411,6 +412,57 @@
   display: flex;
   min-height: 0;
   flex-direction: column;
+  width: var(--document-sidebar-width, 22rem);
+}
+
+#app .apple-workspace-sidebar {
+  width: var(--workspace-sidebar-width, 16rem);
+  flex: none;
+}
+
+#app .sidebar-resize-handle {
+  position: relative;
+  z-index: 10;
+  width: 8px;
+  flex: none;
+  cursor: col-resize;
+  outline: none;
+}
+
+#app .sidebar-resize-handle::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  border-radius: 9999px;
+  background: transparent;
+  content: '';
+  transition: background-color 160ms ease;
+}
+
+#app .sidebar-resize-handle:hover::before,
+#app .sidebar-resize-handle:focus-visible::before {
+  background: var(--apple-blue);
+}
+
+#app .sidebar-resize-handle:focus-visible {
+  outline: 2px solid var(--apple-blue-hover);
+  outline-offset: -2px;
+}
+
+#app .icon-button {
+  padding: 10px !important;
+}
+
+#app .apple-primary-button.icon-button:hover:not(:disabled) {
+  background: var(--apple-blue-hover);
+  color: #fff;
+}
+
+#app .apple-secondary-button.icon-button:hover:not(:disabled) {
+  background: var(--apple-blue-soft);
+  color: var(--apple-blue-hover);
 }
 
 #app .apple-document-sidebar-tabs {
@@ -477,8 +529,16 @@
     right: 0;
     bottom: 0;
     z-index: 20;
-    width: min(22rem, 100%);
+    width: min(var(--document-sidebar-width, 22rem), 100%);
     border-left-color: var(--apple-hairline) !important;
+  }
+
+  #app .apple-workspace-sidebar {
+    width: min(var(--workspace-sidebar-width, 16rem), 32vw);
+  }
+
+  #app .sidebar-resize-handle {
+    display: none;
   }
 }
 

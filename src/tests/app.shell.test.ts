@@ -37,6 +37,7 @@ describe('App shell actions', () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     setLocale('en')
+    window.localStorage.removeItem('md-html-reader.sidebar-widths')
     vi.clearAllMocks()
   })
 
@@ -83,6 +84,34 @@ describe('App shell actions', () => {
     await wrapper.findAll('button').find(button => button.text() === 'Search content')!.trigger('click')
     await flushPromises()
     expect(wrapper.get('[data-testid="search-panel"]').text()).toBe('content:/tmp/workspace')
+  })
+
+  it('persists keyboard sidebar resizing within the desktop width limits', async () => {
+    window.localStorage.setItem('md-html-reader.sidebar-widths', JSON.stringify({ workspace: 320, document: 432 }))
+    const wrapper = mount(App, { global: { plugins: [createPinia()] } })
+    const workspace = useWorkspaceStore()
+    const comments = (await import('../stores/comments')).useCommentsStore()
+    workspace.folderPath = '/tmp/workspace'
+    workspace.currentFile = { path: '/tmp/workspace/note.md', content: '# Note' }
+    comments.list.push({
+      id: 'comment-1',
+      fileHash: 'hash',
+      anchor: { quote: 'Note', offset: 0, length: 4 },
+      content: 'Review',
+      createdAt: 1,
+      updatedAt: 1,
+      status: 'open',
+    })
+    await wrapper.vm.$nextTick()
+
+    const workspaceHandle = wrapper.get('[aria-label="调整文件侧边栏宽度"]')
+    const documentHandle = wrapper.get('[aria-label="调整文档工具侧边栏宽度"]')
+    expect(wrapper.get('.apple-workspace-sidebar').attributes('style')).toContain('--workspace-sidebar-width: 320px')
+    expect(wrapper.get('.apple-document-sidebar').attributes('style')).toContain('--document-sidebar-width: 432px')
+
+    await workspaceHandle.trigger('keydown', { key: 'ArrowRight' })
+    await documentHandle.trigger('keydown', { key: 'ArrowLeft' })
+    expect(JSON.parse(window.localStorage.getItem('md-html-reader.sidebar-widths') || '{}')).toEqual({ workspace: 336, document: 448 })
   })
 
   it('YAML 文件使用原始文本编辑器而不是 Markdown 编辑器', async () => {
