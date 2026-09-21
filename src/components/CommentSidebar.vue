@@ -1,6 +1,6 @@
 <template>
-  <div class="comment-sidebar p-4">
-    <h3 class="text-lg font-semibold mb-4">{{ t('comments', { count: comments.length }) }}</h3>
+  <div class="comment-sidebar p-4 bg-[#fafafc]">
+    <h3 class="text-base font-semibold mb-4">{{ t('comments', { count: comments.length }) }}</h3>
 
     <div v-if="comments.length === 0" class="text-gray-400 text-sm text-center py-8">
       {{ t('noComments') }}
@@ -10,10 +10,10 @@
       <div
         v-for="comment in comments"
         :key="comment.id"
-        class="comment-card p-3 bg-gray-50 rounded border border-gray-200"
+        class="comment-card p-4 bg-white rounded-[18px] border border-gray-200"
         :class="{ 'opacity-50': comment.status === 'resolved' }"
       >
-        <button @click="$emit('locate', comment.id)" class="text-xs text-blue-600">定位原文</button>
+        <button @click="$emit('locate', comment.id)" class="text-xs text-blue-600 hover:text-blue-700">定位原文</button>
         <div class="comment-quote text-xs text-gray-500 mb-2 italic">
           "{{ comment.anchor.quote }}"
         </div>

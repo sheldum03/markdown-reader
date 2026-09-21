@@ -5,8 +5,8 @@
       <div class="document-modes" role="group" aria-label="文档模式">
         <button v-for="item in modes" :key="item.value" :aria-pressed="mode === item.value" :disabled="switching" @click="setMode(item.value)">{{ item.label }}</button>
       </div>
-      <button :disabled="!richSupported" :title="richSupported ? '' : '此文档使用保真源码编辑，支持全部扩展语法和大文档'" class="text-xs" @click="toggleEditor">{{ editorKind === 'source' ? '富文本编辑' : '源码编辑' }}</button>
-      <button class="text-xs text-gray-500 hover:text-blue-600" :aria-pressed="focused" @click="focused = !focused; emit('focus', focused)">{{ focused ? '退出专注' : '专注阅读' }}</button>
+      <button :disabled="!richSupported" :title="richSupported ? '' : '此文档使用保真源码编辑，支持全部扩展语法和大文档'" class="apple-toolbar-link text-xs" @click="toggleEditor">{{ editorKind === 'source' ? '富文本编辑' : '源码编辑' }}</button>
+      <button class="apple-toolbar-link text-xs" :aria-pressed="focused" @click="focused = !focused; emit('focus', focused)">{{ focused ? '退出专注' : '专注阅读' }}</button>
     </div>
     <p v-if="modeError" role="alert" class="px-4 py-2 text-sm text-red-600">{{ modeError }}</p>
     <div class="flex-1 min-h-0 min-w-0 flex">

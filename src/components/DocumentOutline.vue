@@ -1,6 +1,6 @@
 <template>
-  <div @scroll="scrollTop = ($event.target as HTMLElement).scrollTop" class="h-full overflow-auto bg-white border-r border-gray-200">
-    <div class="px-3 py-2 border-b border-gray-200 text-sm font-medium text-gray-700">
+  <div @scroll="scrollTop = ($event.target as HTMLElement).scrollTop" class="h-full overflow-auto bg-[#fafafc] border-r border-gray-200">
+    <div class="px-4 py-3 border-b border-gray-200 text-xs font-semibold text-gray-700">
       {{ t('outline') }}
     </div>
 
@@ -12,7 +12,7 @@
       <button
         v-for="heading in headings.slice(start, start + 50)"
         :key="`${heading.line}-${heading.text}`"
-        class="h-7 block w-full text-left text-xs text-gray-700 hover:bg-blue-50 rounded px-2 py-1 truncate"
+        class="apple-outline-item h-7 block w-full text-left text-xs text-gray-700 px-2 py-1 truncate"
         :style="{ paddingLeft: `${heading.level * 0.5}rem` }"
         :title="heading.text" :data-heading-line="heading.line"
         @click="emit('select', heading)"

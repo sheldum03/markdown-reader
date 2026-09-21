@@ -8,7 +8,7 @@
       <span v-if="isSaving" class="text-xs text-gray-400">{{ t('saving') }}</span>
       <span v-else-if="saveError" class="text-xs text-red-500">{{ saveError }}</span>
       <button
-        class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+        class="apple-primary-button disabled:opacity-50"
         :disabled="isSaving"
         @click="manualSave"
       >

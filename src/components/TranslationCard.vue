@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed right-4 bottom-16 z-50 w-96 max-w-[calc(100vw-2rem)] bg-white border border-gray-200 rounded shadow-lg">
+  <div class="apple-modal fixed right-4 bottom-16 z-50 w-96 max-w-[calc(100vw-2rem)] border border-gray-200">
     <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
       <div class="text-sm font-medium text-gray-800">
         {{ t('translation') }}
@@ -30,7 +30,7 @@
           {{ translated }}
         </div>
         <button
-          class="px-3 py-1 text-xs bg-gray-900 text-white rounded hover:bg-gray-700"
+          class="apple-primary-button text-xs"
           @click="copyTranslated"
         >
           {{ t('copyTranslation') }}

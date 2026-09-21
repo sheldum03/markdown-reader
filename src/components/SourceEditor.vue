@@ -1,7 +1,7 @@
 <template>
   <div class="source-editor h-full flex flex-col bg-white">
     <div class="flex items-center gap-3 px-4 py-2 border-b text-sm">
-      <span class="flex-1">CodeMirror · 保真源码 <span v-if="dirty">● 未保存</span></span>
+      <span class="flex-1">CodeMirror 保真源码 <span v-if="dirty">未保存</span></span>
       <span v-if="saving">{{ t('saving') }}</span><span v-else-if="saved">{{ t('savedJustNow') }}</span><span v-if="error" role="alert" class="text-red-600">{{ error }}</span>
       <button @click="saveCurrentContent().catch(() => {})">{{ t('save') }}</button>
       <button :disabled="formatting" @click="previewFormat">{{ formatting ? '格式化中…' : 'CJK 格式预览' }}</button>

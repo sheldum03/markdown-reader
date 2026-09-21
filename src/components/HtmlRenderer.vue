@@ -8,13 +8,13 @@
       <button
         @click="openFullPreview"
         :disabled="isOpeningFullPreview"
-        class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+        class="apple-primary-button disabled:opacity-50"
       >
         {{ isOpeningFullPreview ? t('opening') : t('openFullPreview') }}
       </button>
       <button
         @click="showStaticPreview = !showStaticPreview"
-        class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+        class="apple-secondary-button"
       >
         {{ showStaticPreview ? t('closeSafePreview') : t('safePreview') }}
       </button>
@@ -46,7 +46,7 @@
         <button
           @click="openFullPreview"
           :disabled="isOpeningFullPreview"
-          class="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+          class="apple-primary-button disabled:opacity-50"
         >
           {{ isOpeningFullPreview ? t('opening') : t('openFullPreview') }}
         </button>

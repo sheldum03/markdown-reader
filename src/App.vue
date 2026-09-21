@@ -1,14 +1,14 @@
 <template>
   <div id="app" class="h-screen flex flex-col bg-gray-50">
-    <header class="h-14 bg-white border-b border-gray-200 flex items-center px-4">
+    <header class="apple-global-nav shrink-0 flex items-center px-4 sm:px-6">
       <div>
-        <h1 class="text-lg font-semibold text-gray-900">MD+HTML Reader</h1>
-        <p class="text-xs text-gray-500">{{ t('appSubtitle') }}</p>
+        <h1 class="text-xs font-semibold tracking-tight text-white">MD+HTML Reader</h1>
+        <p class="sr-only">{{ t('appSubtitle') }}</p>
       </div>
       <div class="ml-auto flex items-center gap-2">
         <select
           :value="locale"
-          class="rounded border border-gray-200 bg-white px-2 py-1 text-sm text-gray-700"
+          class="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white"
           :aria-label="t('language')"
           @change="changeLocale"
         >
@@ -16,18 +16,18 @@
           <option value="zh-CN">中文</option>
         </select>
         <button
-          class="px-3 py-1 text-sm text-gray-600 rounded hover:bg-gray-100"
+          class="apple-utility-button apple-nav-secondary"
           :aria-label="t('quickStart')"
           @click="showGettingStarted = true"
         >
           {{ t('quickStart') }}
         </button>
-        <button v-if="workspace.folderPath" class="px-2 text-sm" @click="showMcp = !showMcp">MCP</button>
-        <details v-if="workspace.folderPath" class="relative">
-          <summary class="cursor-pointer list-none px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
+        <button v-if="workspace.folderPath" class="apple-utility-button apple-nav-secondary" @click="showMcp = !showMcp">MCP</button>
+        <details v-if="workspace.folderPath" class="apple-nav-document-tools relative">
+          <summary class="apple-utility-button cursor-pointer list-none">
             {{ t('documentTools') }}
           </summary>
-          <div class="absolute right-0 z-30 mt-2 w-[44rem] max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 bg-white p-3 shadow-xl">
+          <div class="apple-modal absolute right-0 z-30 mt-2 w-[44rem] max-w-[calc(100vw-2rem)] p-4">
             <div class="flex flex-wrap gap-2">
         <button
           @click="openSearch('files')"
@@ -116,14 +116,14 @@
         </details>
         <button
           @click="openFolder"
-          class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+          class="apple-primary-button disabled:opacity-50"
           :disabled="isMarkdownTranslating || isFolderOpening"
         >
           {{ isFolderOpening ? t('opening') : t('openFolder') }}
         </button>
       </div>
     </header>
-    <section v-if="showMcp && workspace.folderPath" class="p-4 bg-white border-b">
+    <section v-if="showMcp && workspace.folderPath" class="apple-panel p-4 border-b text-sm">
       <p>将此配置加入 MCP 客户端。仅授权当前工作区，默认只读；服务访问磁盘文件，不读取未保存草稿。</p>
       <label><input v-model="mcpWritable" type="checkbox" @change="loadMcpConfig" /> 允许客户端写入此工作区的已有文档（需匹配文件版本）</label>
       <button class="ml-4" @click="loadMcpConfig">生成配置</button>
@@ -158,7 +158,7 @@
     <section
       v-if="openAiConfigOpen"
       :aria-label="t('modelSettingsTitle')"
-      class="px-4 py-3 bg-white border-b border-gray-200"
+      class="apple-panel px-4 py-3 border-b"
     >
       <div class="max-w-4xl space-y-2">
         <div class="flex items-center justify-between">
@@ -316,40 +316,40 @@
 
       <section class="flex-1 min-w-0 min-h-0 flex flex-col">
         <div v-if="workspace.openingPath" role="status" class="px-4 py-2 text-sm">Opening {{ workspace.openingPath.split('/').pop() }}…</div>
-        <div v-if="!workspace.folderPath" class="flex-1 overflow-auto bg-slate-50 p-6 sm:p-10">
-          <section class="mx-auto flex min-h-full max-w-4xl flex-col justify-center">
+        <div v-if="!workspace.folderPath" class="apple-onboarding flex-1 overflow-auto px-6 py-10 sm:px-10">
+          <section class="apple-onboarding-copy mx-auto flex min-h-full flex-col justify-center">
             <p class="text-sm font-medium text-blue-700">MD+HTML Reader</p>
-            <h2 class="mt-2 max-w-3xl text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+            <h2 class="apple-onboarding-title mt-3">
               {{ t('onboardingTitle') }}
             </h2>
-            <p class="mt-4 max-w-2xl text-base leading-7 text-slate-600">
+            <p class="apple-onboarding-description mt-4 max-w-2xl">
               {{ t('onboardingDescription') }}
             </p>
             <div class="mt-7 flex flex-wrap gap-3">
               <button
-                class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                class="apple-primary-button disabled:opacity-50"
                 :disabled="isFolderOpening"
                 @click="openFolder"
               >
                 {{ isFolderOpening ? t('openingFolder') : t('openDocumentFolder') }}
               </button>
               <button
-                class="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                class="apple-secondary-button"
                 @click="showGettingStarted = true"
               >
                 {{ t('walkthrough') }}
               </button>
               <button
-                class="px-2 py-2 text-sm font-medium text-slate-600 underline underline-offset-4 hover:text-slate-900"
+                class="px-2 py-2 text-sm text-blue-700 hover:text-blue-600"
                 @click="showTrustInfo = true"
               >
                 {{ t('privacyBetaNotes') }}
               </button>
             </div>
-            <ol class="mt-10 grid gap-3 text-sm text-slate-700 sm:grid-cols-3">
-              <li class="rounded-lg border border-slate-200 bg-white p-4"><span class="font-semibold text-blue-700">1.</span> {{ t('onboardingStepOne') }}</li>
-              <li class="rounded-lg border border-slate-200 bg-white p-4"><span class="font-semibold text-blue-700">2.</span> {{ t('onboardingStepTwo') }}</li>
-              <li class="rounded-lg border border-slate-200 bg-white p-4"><span class="font-semibold text-blue-700">3.</span> {{ t('onboardingStepThree') }}</li>
+            <ol class="mt-10 grid gap-3 text-sm sm:grid-cols-3">
+              <li class="apple-onboarding-step"><span class="apple-step-number">1.</span> {{ t('onboardingStepOne') }}</li>
+              <li class="apple-onboarding-step"><span class="apple-step-number">2.</span> {{ t('onboardingStepTwo') }}</li>
+              <li class="apple-onboarding-step"><span class="apple-step-number">3.</span> {{ t('onboardingStepThree') }}</li>
             </ol>
           </section>
         </div>
@@ -363,8 +363,8 @@
         </div>
 
         <div v-else class="flex-1 min-h-0 flex flex-col overflow-hidden">
-          <nav role="tablist" aria-label="文档标签" class="flex overflow-x-auto border-b bg-white shrink-0">
-            <div v-for="tab in workspace.tabs" :key="tab.path" class="flex items-center border-r px-3 py-2 gap-2 text-sm" :class="{ 'bg-blue-50': tab.path === workspace.currentFile?.path }">
+          <nav role="tablist" aria-label="文档标签" class="flex shrink-0 overflow-x-auto border-b bg-[#fafafc] px-2 pt-2">
+            <div v-for="tab in workspace.tabs" :key="tab.path" class="flex items-center gap-2 rounded-t-lg px-3 py-2 text-sm" :class="{ 'bg-white border border-b-white border-gray-200': tab.path === workspace.currentFile?.path }">
               <button role="tab" :aria-selected="tab.path === workspace.currentFile?.path" @click="openFile(tab.path)">{{ tab.path.split('/').pop() }}{{ tab.draft !== undefined && tab.draft !== tab.content ? ' ●' : '' }}</button>
               <button :aria-label="'关闭 ' + tab.path.split('/').pop()" @click="closeTab(tab.path)">×</button>
             </div>
@@ -403,7 +403,7 @@
     <div
       v-if="exportMessage"
       role="status"
-      class="fixed bottom-4 right-4 bg-gray-900 text-white text-sm px-4 py-2 rounded shadow-lg"
+      class="apple-modal fixed bottom-4 right-4 px-4 py-2 text-sm text-gray-800"
     >
       {{ exportMessage }}
     </div>
@@ -431,8 +431,8 @@
       @update:permanent-write-permission="setPermanentAssistantWritePermission"
     />
 
-    <div v-if="showGettingStarted" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-6" role="dialog" aria-modal="true" :aria-label="t('quickStartDialog')">
-      <section class="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+    <div v-if="showGettingStarted" class="apple-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-6" role="dialog" aria-modal="true" :aria-label="t('quickStartDialog')">
+      <section class="apple-modal w-full max-w-lg p-6">
         <div class="flex items-start justify-between gap-4">
           <div>
             <p class="text-sm font-medium text-blue-700">{{ t('quickStartLabel') }}</p>
@@ -450,13 +450,13 @@
         </p>
         <div class="mt-6 flex flex-wrap justify-end gap-3">
           <button class="text-sm font-medium text-slate-600 underline underline-offset-4" @click="showTrustInfo = true">{{ t('privacyBetaNotes') }}</button>
-          <button class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" @click="showGettingStarted = false; openFolder()">{{ t('openFolder') }}</button>
+          <button class="apple-primary-button" @click="showGettingStarted = false; openFolder()">{{ t('openFolder') }}</button>
         </div>
       </section>
     </div>
 
-    <div v-if="showTrustInfo" class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-6" role="dialog" aria-modal="true" :aria-label="t('privacyDialog')">
-      <section class="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+    <div v-if="showTrustInfo" class="apple-modal-backdrop fixed inset-0 z-[60] flex items-center justify-center p-6" role="dialog" aria-modal="true" :aria-label="t('privacyDialog')">
+      <section class="apple-modal w-full max-w-lg p-6">
         <div class="flex items-start justify-between gap-4">
           <div>
             <p class="text-sm font-medium text-blue-700">{{ t('privacyLabel') }}</p>
@@ -469,7 +469,7 @@
           <p>{{ t('privacyAi') }}</p>
           <p>{{ t('privacyBeta') }}</p>
         </div>
-        <button class="mt-6 rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700" @click="showTrustInfo = false">{{ t('gotIt') }}</button>
+        <button class="apple-primary-button mt-6" @click="showTrustInfo = false">{{ t('gotIt') }}</button>
       </section>
     </div>
   </div>

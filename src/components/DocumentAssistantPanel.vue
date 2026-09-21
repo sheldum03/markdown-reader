@@ -1,6 +1,6 @@
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
-    <section class="max-h-full w-full max-w-6xl overflow-auto rounded-lg bg-white shadow-xl">
+  <div class="apple-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-6">
+    <section class="apple-modal max-h-full w-full max-w-6xl overflow-auto">
       <header class="flex items-center justify-between border-b border-gray-200 px-5 py-4">
         <div>
           <h2 class="text-lg font-semibold text-gray-900">
@@ -38,7 +38,7 @@
           {{ t('permanentWritePermission', { scope: permissionScope }) }}
         </label>
         <button
-          class="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+          class="apple-primary-button disabled:opacity-50"
           :disabled="applying"
           @click="$emit('apply')"
         >
