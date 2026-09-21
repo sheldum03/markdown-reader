@@ -40,6 +40,8 @@ fn main() {
             fs_handler::read_file,
             fs_handler::write_file,
             fs_handler::write_file_checked,
+            fs_handler::create_markdown_file,
+            fs_handler::delete_markdown_file,
             comments::calculate_file_hash,
             comments::load_comments,
             comments::save_comment,

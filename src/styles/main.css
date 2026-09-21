@@ -420,6 +420,35 @@
   flex: none;
 }
 
+#app .workspace-file-tools {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  border-bottom: 1px solid var(--apple-divider);
+  padding: 8px;
+}
+
+#app .workspace-file-tools .workspace-file-tool {
+  justify-self: center;
+  background: var(--apple-pearl);
+  color: var(--apple-muted);
+}
+
+#app .workspace-file-tools .workspace-file-tool.is-active {
+  background: var(--apple-blue-soft);
+  color: var(--apple-blue);
+}
+
+#app .workspace-file-tools .workspace-file-tool:hover:not(:disabled) {
+  background: var(--apple-blue-soft);
+  color: var(--apple-blue);
+}
+
+#app .workspace-file-tools .workspace-file-tool.is-danger:hover:not(:disabled) {
+  background: #fff1f2;
+  color: #dc2626;
+}
+
 #app .sidebar-resize-handle {
   position: relative;
   z-index: 10;

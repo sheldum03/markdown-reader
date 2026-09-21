@@ -28,6 +28,7 @@ import OffScreen from '@icon-park/vue-next/es/icons/OffScreen'
 import Format from '@icon-park/vue-next/es/icons/Format'
 import Undo from '@icon-park/vue-next/es/icons/Undo'
 import Delete from '@icon-park/vue-next/es/icons/Delete'
+import FileAddition from '@icon-park/vue-next/es/icons/FileAddition'
 import Copy from '@icon-park/vue-next/es/icons/Copy'
 import Send from '@icon-park/vue-next/es/icons/Send'
 import Config from '@icon-park/vue-next/es/icons/Config'
@@ -64,6 +65,7 @@ export const icons = {
   format: Format,
   undo: Undo,
   delete: Delete,
+  'new-file': FileAddition,
   copy: Copy,
   send: Send,
   config: Config,

@@ -40,6 +40,54 @@ mod tests {
     }
 
     #[test]
+    fn creates_markdown_files_in_the_workspace_root_without_overwriting() {
+        let workspace = unique_test_root("create-markdown");
+        fs::create_dir_all(&workspace).unwrap();
+        let workspace_path = workspace.to_string_lossy().to_string();
+
+        let created = create_markdown_file(workspace_path.clone(), "Release notes".to_string())
+            .unwrap();
+
+        assert_eq!(
+            created,
+            fs::canonicalize(workspace.join("Release notes.md"))
+                .unwrap()
+                .to_string_lossy()
+        );
+        assert_eq!(fs::read_to_string(&created).unwrap(), "");
+        assert!(create_markdown_file(workspace_path.clone(), "Release notes.md".to_string()).is_err());
+        assert!(create_markdown_file(workspace_path.clone(), "   ".to_string()).is_err());
+        assert!(create_markdown_file(workspace_path.clone(), "../outside".to_string()).is_err());
+        assert!(create_markdown_file(workspace_path, ".hidden".to_string()).is_err());
+
+        fs::remove_dir_all(workspace).unwrap();
+    }
+
+    #[test]
+    fn deletes_only_markdown_files_inside_the_workspace() {
+        let workspace = unique_test_root("delete-markdown");
+        let outside = unique_test_root("delete-outside");
+        fs::create_dir_all(&workspace).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        let markdown = workspace.join("note.md");
+        let html = workspace.join("page.html");
+        let external = outside.join("external.md");
+        fs::write(&markdown, "# Note").unwrap();
+        fs::write(&html, "<h1>Page</h1>").unwrap();
+        fs::write(&external, "# External").unwrap();
+
+        let workspace_path = workspace.to_string_lossy().to_string();
+        delete_markdown_file(workspace_path.clone(), markdown.to_string_lossy().to_string()).unwrap();
+
+        assert!(!markdown.exists());
+        assert!(delete_markdown_file(workspace_path.clone(), html.to_string_lossy().to_string()).is_err());
+        assert!(delete_markdown_file(workspace_path, external.to_string_lossy().to_string()).is_err());
+
+        fs::remove_dir_all(workspace).unwrap();
+        fs::remove_dir_all(outside).unwrap();
+    }
+
+    #[test]
     fn read_and_write_require_paths_inside_workspace() {
         let workspace = unique_test_root("workspace");
         let outside = unique_test_root("outside");
@@ -263,6 +311,58 @@ pub fn read_file(workspace_path: String, path: String) -> Result<String, String>
 pub fn write_file(workspace_path: String, path: String, content: String) -> Result<(), String> {
     let path = document_file_in_workspace(&workspace_path, &path)?;
     fs::write(&path, content).map_err(|e| format!("写入文件失败: {}", e))
+}
+
+fn markdown_file_name(name: &str) -> Result<String, String> {
+    let name = name.trim();
+    let path = Path::new(name);
+    let is_single_file_name = path.components().count() == 1
+        && path.file_name().and_then(|file_name| file_name.to_str()) == Some(name)
+        && !name.contains(['/', '\\']);
+
+    if name.is_empty() || !is_single_file_name || is_ignored_name(name) {
+        return Err("文件名无效。请使用工作区根目录下的普通文件名。".to_string());
+    }
+
+    if name
+        .rsplit_once('.')
+        .map(|(_, extension)| extension.eq_ignore_ascii_case("md"))
+        .unwrap_or(false)
+    {
+        Ok(name.to_string())
+    } else {
+        Ok(format!("{}.md", name))
+    }
+}
+
+#[command]
+pub fn create_markdown_file(workspace_path: String, name: String) -> Result<String, String> {
+    let root = workspace_root(&workspace_path)?;
+    let file_name = markdown_file_name(&name)?;
+    let path = root.join(file_name);
+
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .map_err(|error| format!("新建 Markdown 文件失败: {}", error))?;
+
+    Ok(path.to_string_lossy().to_string())
+}
+
+#[command]
+pub fn delete_markdown_file(workspace_path: String, path: String) -> Result<(), String> {
+    let path = document_file_in_workspace(&workspace_path, &path)?;
+    let is_markdown = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("md"));
+
+    if !is_markdown {
+        return Err("只允许删除 Markdown 文件".to_string());
+    }
+
+    fs::remove_file(&path).map_err(|error| format!("删除 Markdown 文件失败: {}", error))
 }
 
 fn extract_document_title(path: &Path) -> Option<String> {

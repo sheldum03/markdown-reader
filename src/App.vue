@@ -243,49 +243,63 @@
         class="apple-workspace-sidebar bg-white border-r border-gray-200 overflow-auto"
         :style="{ '--workspace-sidebar-width': `${workspaceSidebarWidth}px` }"
       >
-        <div class="p-2 border-b border-gray-200 space-y-2">
-          <div class="flex gap-1">
-            <IconButton
-              icon="all-files"
-              :label="t('allFiles')"
-              class="px-2 py-1 text-xs rounded"
-              :class="fileFilter === 'all' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'"
-              @click="fileFilter = 'all'"
-            />
-            <IconButton
-              icon="markdown"
-              :label="t('markdown')"
-              class="px-2 py-1 text-xs rounded"
-              :class="fileFilter === 'markdown' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'"
-              @click="fileFilter = 'markdown'"
-            />
-            <IconButton
-              icon="html"
-              :label="t('html')"
-              class="px-2 py-1 text-xs rounded"
-              :class="fileFilter === 'html' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'"
-              @click="fileFilter = 'html'"
-            />
-          </div>
-          <div class="flex gap-1">
-            <IconButton
-              icon="locate"
-              :label="t('locateCurrentFile')"
-              class="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
-              :disabled="!workspace.currentFile"
-              @click="locateCurrentFile"
-            />
-            <IconButton
-              icon="titles"
-              :label="displayMode === 'filename' ? t('showTitles') : t('showFileNames')"
-              class="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-              @click="toggleDisplayMode"
-            />
-          </div>
+        <div class="workspace-file-tools" role="toolbar" :aria-label="t('fileTools')">
+          <IconButton
+            icon="all-files"
+            :label="t('allFiles')"
+            class="workspace-file-tool"
+            :class="{ 'is-active': fileFilter === 'all' }"
+            :aria-pressed="fileFilter === 'all'"
+            @click="fileFilter = 'all'"
+          />
+          <IconButton
+            icon="markdown"
+            :label="t('markdown')"
+            class="workspace-file-tool"
+            :class="{ 'is-active': fileFilter === 'markdown' }"
+            :aria-pressed="fileFilter === 'markdown'"
+            @click="fileFilter = 'markdown'"
+          />
+          <IconButton
+            icon="html"
+            :label="t('html')"
+            class="workspace-file-tool"
+            :class="{ 'is-active': fileFilter === 'html' }"
+            :aria-pressed="fileFilter === 'html'"
+            @click="fileFilter = 'html'"
+          />
+          <IconButton
+            icon="locate"
+            :label="t('locateCurrentFile')"
+            class="workspace-file-tool"
+            :disabled="!workspace.currentFile"
+            @click="locateCurrentFile"
+          />
+          <IconButton
+            icon="new-file"
+            :label="t('newMarkdownFile')"
+            class="workspace-file-tool"
+            :disabled="isMarkdownTranslating || isCreatingMarkdown"
+            @click="openCreateMarkdownDialog"
+          />
+          <IconButton
+            icon="delete"
+            :label="t('deleteMarkdownFile')"
+            class="workspace-file-tool is-danger"
+            :disabled="!currentIsMarkdown || isMarkdownTranslating || isDeletingMarkdown"
+            @click="deleteCurrentMarkdownFile"
+          />
+          <IconButton
+            icon="titles"
+            :label="displayMode === 'filename' ? t('showTitles') : t('showFileNames')"
+            class="workspace-file-tool"
+            @click="toggleDisplayMode"
+          />
           <IconButton
             icon="outline"
             :label="outlineOpen && currentIsMarkdown ? t('hideOutline') : t('showOutline')"
-            class="w-full px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
+            class="workspace-file-tool"
+            :aria-pressed="outlineOpen"
             :disabled="!currentIsMarkdown"
             @click="outlineOpen = !outlineOpen"
           />
@@ -481,6 +495,36 @@
       @apply="applyAssistantOptimization"
       @update:permanent-write-permission="setPermanentAssistantWritePermission"
     />
+
+    <div v-if="showCreateMarkdown" class="apple-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-6" role="dialog" aria-modal="true" :aria-label="t('newMarkdownFile')">
+      <section class="apple-modal w-full max-w-md p-6">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-sm font-medium text-blue-700">{{ t('fileTools') }}</p>
+            <h2 class="mt-1 text-xl font-semibold text-slate-900">{{ t('newMarkdownFile') }}</h2>
+          </div>
+          <IconButton class="text-slate-500 hover:text-slate-800" icon="close" :label="t('close')" @click="closeCreateMarkdownDialog" />
+        </div>
+        <form class="mt-6" @submit.prevent="createMarkdownFile">
+          <label for="new-markdown-file-name" class="block text-sm font-medium text-slate-800">{{ t('markdownFileName') }}</label>
+          <input
+            id="new-markdown-file-name"
+            v-model="newMarkdownName"
+            class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            :placeholder="t('markdownFileNamePlaceholder')"
+            autocomplete="off"
+          />
+          <p class="mt-2 text-xs leading-5 text-slate-500">{{ t('newMarkdownFileHint') }}</p>
+          <p v-if="newMarkdownError" class="mt-3 text-sm text-red-700" role="alert">{{ newMarkdownError }}</p>
+          <div class="mt-6 flex justify-end gap-3">
+            <button type="button" class="text-sm font-medium text-slate-600 underline underline-offset-4" @click="closeCreateMarkdownDialog">{{ t('cancel') }}</button>
+            <button class="apple-primary-button" :disabled="!newMarkdownName.trim() || isCreatingMarkdown">
+              {{ isCreatingMarkdown ? t('creatingMarkdownFile') : t('createMarkdownFile') }}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
 
     <div v-if="showGettingStarted" class="apple-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-6" role="dialog" aria-modal="true" :aria-label="t('quickStartDialog')">
       <section class="apple-modal w-full max-w-lg p-6">
@@ -684,6 +728,11 @@ const markdownTranslationMessage = ref<string | null>(null)
 const markdownTranslationError = ref<string | null>(null)
 const isFolderOpening = ref(false)
 const workspaceError = ref<string | null>(null)
+const showCreateMarkdown = ref(false)
+const newMarkdownName = ref('')
+const newMarkdownError = ref<string | null>(null)
+const isCreatingMarkdown = ref(false)
+const isDeletingMarkdown = ref(false)
 const assistantMode = ref<DocumentAssistantMode | null>(null)
 const isAssistantRunning = ref(false)
 const isAssistantApplying = ref(false)
@@ -1032,6 +1081,73 @@ async function openFile(filePath: string) {
   editorRef.value = tabEditors.get(filePath) || null
   documentHeadings.value = tabHeadings.get(filePath) || []
   await comments.loadComments(workspace.folderPath, filePath, workspace.currentFile?.content)
+}
+
+function openCreateMarkdownDialog() {
+  if (!workspace.folderPath || isMarkdownTranslating.value) return
+  newMarkdownName.value = ''
+  newMarkdownError.value = null
+  showCreateMarkdown.value = true
+}
+
+function closeCreateMarkdownDialog() {
+  if (isCreatingMarkdown.value) return
+  showCreateMarkdown.value = false
+  newMarkdownError.value = null
+}
+
+async function createMarkdownFile() {
+  const workspacePath = workspace.folderPath
+  const name = newMarkdownName.value.trim()
+  if (!workspacePath || !name || isCreatingMarkdown.value) return
+
+  isCreatingMarkdown.value = true
+  newMarkdownError.value = null
+  try {
+    const filePath = await invoke<string>('create_markdown_file', { workspacePath, name })
+    if (!(await workspace.refreshFiles())) throw new Error(t('refreshFiles'))
+    showCreateMarkdown.value = false
+    await openFile(filePath)
+  } catch (error) {
+    newMarkdownError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isCreatingMarkdown.value = false
+  }
+}
+
+async function deleteCurrentMarkdownFile() {
+  const currentFile = workspace.currentFile
+  const workspacePath = workspace.folderPath
+  if (!currentFile || !workspacePath || !currentIsMarkdown.value || isDeletingMarkdown.value) return
+
+  const fileName = currentFile.path.split('/').pop() || currentFile.path
+  const approved = isE2E
+    ? confirm(t('deleteMarkdownConfirm', { name: fileName }))
+    : await ask(t('deleteMarkdownConfirm', { name: fileName }), { title: t('deleteMarkdownFile'), kind: 'warning' })
+  if (!approved) return
+
+  const editor = tabEditors.get(currentFile.path)
+  if (editor && !(await editor.requestDiscardChanges('switch-file'))) return
+
+  isDeletingMarkdown.value = true
+  try {
+    await invoke('delete_markdown_file', { workspacePath, path: currentFile.path })
+    workspace.closeTab(currentFile.path)
+    tabEditors.delete(currentFile.path)
+    tabHeadings.delete(currentFile.path)
+    const nextFile = workspace.currentFile
+    editorRef.value = nextFile ? tabEditors.get(nextFile.path) || null : null
+    documentHeadings.value = nextFile ? tabHeadings.get(nextFile.path) || [] : []
+    if (nextFile) await comments.loadComments(workspacePath, nextFile.path, nextFile.content)
+    else comments.clearCurrentFile()
+    if (!(await workspace.refreshFiles())) workspaceError.value = t('refreshFiles')
+  } catch (error) {
+    workspaceError.value = t('deleteMarkdownFailed', {
+      message: error instanceof Error ? error.message : String(error),
+    })
+  } finally {
+    isDeletingMarkdown.value = false
+  }
 }
 
 async function openFileFromSearch(filePath: string) {

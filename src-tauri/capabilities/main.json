@@ -9,6 +9,8 @@
     "allow-list-files",
     "allow-read-file",
     "allow-write-file",
+    "allow-create-markdown-file",
+    "allow-delete-markdown-file",
     "allow-calculate-file-hash",
     "allow-load-comments",
     "allow-save-comment",

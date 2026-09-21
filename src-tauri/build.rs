@@ -4,6 +4,8 @@ fn main() {
             "list_files",
             "read_file",
             "write_file",
+            "create_markdown_file",
+            "delete_markdown_file",
             "calculate_file_hash",
             "load_comments",
             "save_comment",

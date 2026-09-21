@@ -349,6 +349,60 @@ describe('App core user flow', () => {
     wrapper.unmount()
   })
 
+  it('通过紧凑文件工具区新建并删除当前 Markdown 文件', async () => {
+    let created = false
+    vi.mocked(open).mockResolvedValue('/tmp/workspace')
+    vi.mocked(ask).mockResolvedValue(true)
+    vi.mocked(invoke).mockImplementation(async (command: string, args?: any) => {
+      if (command === 'list_files') {
+        return [
+          { name: 'note.md', path: '/tmp/workspace/note.md', type: 'file', extension: '.md' },
+          ...(created ? [{ name: 'Daily notes.md', path: '/tmp/workspace/Daily notes.md', type: 'file' as const, extension: '.md' }] : []),
+        ]
+      }
+      if (command === 'create_markdown_file') {
+        expect(args).toEqual({ workspacePath: '/tmp/workspace', name: 'Daily notes' })
+        created = true
+        return '/tmp/workspace/Daily notes.md'
+      }
+      if (command === 'delete_markdown_file') {
+        expect(args).toEqual({ workspacePath: '/tmp/workspace', path: '/tmp/workspace/Daily notes.md' })
+        created = false
+        return undefined
+      }
+      if (command === 'read_file') return args.path.endsWith('Daily notes.md') ? '' : '# Note'
+      if (command === 'load_comments') return []
+      if (command === 'calculate_file_hash') return 'hash'
+      throw new Error(`Unexpected command: ${command}`)
+    })
+
+    const pinia = createPinia()
+    const wrapper = mount(App, { global: { plugins: [pinia] } })
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[role="toolbar"]').findAll('.workspace-file-tool')).toHaveLength(8)
+    await wrapper.get('[aria-label="New Markdown file"]').trigger('click')
+    await wrapper.get('#new-markdown-file-name').setValue('Daily notes')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    const workspace = useWorkspaceStore(pinia)
+    expect(workspace.currentFile?.path).toBe('/tmp/workspace/Daily notes.md')
+    expect(workspace.files.map(file => file.name)).toContain('Daily notes.md')
+
+    await wrapper.get('[aria-label="Delete current Markdown file"]').trigger('click')
+    await flushPromises()
+
+    expect(ask).toHaveBeenCalledWith(
+      'Permanently delete “Daily notes.md”? This cannot be undone.',
+      { title: 'Delete current Markdown file', kind: 'warning' },
+    )
+    expect(workspace.currentFile).toBeNull()
+    expect(workspace.files.map(file => file.name)).not.toContain('Daily notes.md')
+    wrapper.unmount()
+  })
+
   it('导出保存期间切换标签仍使用源文件内容与资源路径', async () => {
     vi.mocked(invoke).mockImplementation(async (command: string) => {
       if (command === 'read_file') return 'BBB'
