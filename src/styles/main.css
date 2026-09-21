@@ -423,7 +423,7 @@
 }
 
 #app .apple-document-sidebar-tab {
-  min-height: 30px;
+  min-height: 44px;
   flex: 1;
   border-radius: 9999px;
   color: var(--apple-muted);
@@ -432,13 +432,13 @@
 }
 
 #app .apple-document-sidebar-tab:hover:not(:disabled) {
-  background: #ececf0;
-  color: var(--apple-ink);
+  background: var(--apple-blue-soft);
+  color: var(--apple-blue);
 }
 
 #app .apple-document-sidebar-tab.is-active {
-  background: var(--apple-canvas);
-  color: var(--apple-ink);
+  background: var(--apple-blue-soft);
+  color: var(--apple-blue);
 }
 
 #app .apple-document-sidebar-tab:disabled {

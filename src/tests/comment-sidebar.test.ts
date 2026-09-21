@@ -20,4 +20,24 @@ describe('CommentSidebar', () => {
 
     expect(wrapper.emitted('submit')).toEqual([['Review this wording']])
   })
+
+  it('提交中禁用提交按钮', async () => {
+    const wrapper = mount(CommentSidebar, {
+      props: {
+        comments: [],
+        submitting: true,
+        draft: {
+          anchor: { quote: 'Selected passage', offset: 0, length: 15 },
+          text: 'Selected passage',
+        },
+      },
+    })
+
+    await wrapper.find('textarea').setValue('Review this wording')
+    const submit = wrapper.findAll('button').find(button => button.text() === 'Submit')!
+
+    expect(submit.attributes('disabled')).toBeDefined()
+    await submit.trigger('click')
+    expect(wrapper.emitted('submit')).toBeUndefined()
+  })
 })

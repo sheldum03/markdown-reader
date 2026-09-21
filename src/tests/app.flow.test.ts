@@ -58,7 +58,7 @@ vi.mock('../components/FileTree.vue', () => ({
 vi.mock('../components/MarkdownDocument.vue', () => ({
   default: {
     props: ['file', 'saveContent'],
-    emits: ['startComment', 'translate', 'headings'],
+    emits: ['startComment', 'translate', 'headings', 'focus'],
     mounted() {
       milkdownLifecycle.mountCount++
       ;(this as any).$emit('headings', [{ text: (this as any).file.path, line: 1, level: 1, id: 'heading-1' }])
@@ -108,6 +108,7 @@ vi.mock('../components/MarkdownDocument.vue', () => ({
         >
           翻译选区
         </button>
+        <button data-testid="focus-document" @click="$emit('focus', true)">专注阅读</button>
       </div>
     `,
   },
@@ -126,11 +127,11 @@ vi.mock('../components/HtmlRenderer.vue', () => ({
 
 vi.mock('../components/CommentSidebar.vue', () => ({
   default: {
-    props: ['comments', 'draft'],
+    props: ['comments', 'draft', 'submitting'],
     emits: ['resolve', 'delete', 'submit', 'cancel'],
     template: `
       <div data-testid="comment-sidebar">
-        <button v-if="draft" data-testid="submit-comment" @click="$emit('submit', 'Review note')">提交评论</button>
+        <button v-if="draft" data-testid="submit-comment" :disabled="submitting" @click="!submitting && $emit('submit', 'Review note')">提交评论</button>
         <div v-for="comment in comments" :key="comment.id">
           {{ comment.content }}|{{ comment.status }}
           <button data-testid="resolve-comment" @click="$emit('resolve', comment.id)">解决评论</button>
@@ -716,6 +717,67 @@ describe('App core user flow', () => {
 
     expect(wrapper.get('[data-testid="translation-card"]').text()).toContain('你好')
     expect(wrapper.get('[data-testid="translation-card"]').text()).toContain('ollama')
+  })
+
+  it('切换文档时丢弃过期译文', async () => {
+    let resolveTranslation!: (result: any) => void
+    const translation = new Promise(resolve => { resolveTranslation = resolve })
+    vi.mocked(open).mockResolvedValue('/tmp/workspace')
+    vi.mocked(invoke).mockImplementation(async (command: string, args?: any) => {
+      if (command === 'translate_text') return translation
+      if (command === 'list_files') {
+        return [
+          { name: 'first.md', path: '/tmp/workspace/first.md', type: 'file', extension: '.md' },
+          { name: 'second.md', path: '/tmp/workspace/second.md', type: 'file', extension: '.md' },
+        ]
+      }
+      if (command === 'read_file') return args.path.endsWith('second.md') ? '# Second' : '# First'
+      if (command === 'calculate_file_hash') return 'hash'
+      if (command === 'load_comments') return []
+      throw new Error(`Unexpected command: ${command}`)
+    })
+
+    const pinia = createPinia()
+    const workspace = useWorkspaceStore(pinia)
+    const wrapper = mount(App, { global: { plugins: [pinia] } })
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
+    await flushPromises()
+    await wrapper.findAll('[data-testid="file-item"]')[0].trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="translate-selection"]').trigger('click')
+
+    await workspace.openFile('/tmp/workspace/second.md')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="translation-card"]').exists()).toBe(false)
+
+    resolveTranslation({ original: 'Hello', translated: '你好', service: 'ollama' })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="translation-card"]').exists()).toBe(false)
+  })
+
+  it('专注模式中发起评论时自动显示评论侧栏', async () => {
+    vi.mocked(open).mockResolvedValue('/tmp/workspace')
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === 'list_files') return [{ name: 'note.md', path: '/tmp/workspace/note.md', type: 'file', extension: '.md' }]
+      if (command === 'read_file') return '# Note'
+      if (command === 'calculate_file_hash') return 'hash-note'
+      if (command === 'load_comments') return []
+      throw new Error(`Unexpected command: ${command}`)
+    })
+
+    const wrapper = mount(App, { global: { plugins: [createPinia()] } })
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="file-item"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="focus-document"]').trigger('click')
+    await wrapper.get('[data-testid="add-comment"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="comment-sidebar"]').exists()).toBe(true)
   })
 
   it('将 OpenAI 兼容配置传给翻译命令且不持久化 API Key', async () => {

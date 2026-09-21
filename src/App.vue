@@ -409,6 +409,7 @@
           v-if="activeSidebarPanel === 'comments'"
           :comments="comments.list"
           :draft="commentDraft"
+          :submitting="isSubmittingComment"
           @locate="locateComment"
           @resolve="handleResolveComment"
           @delete="handleDeleteComment"
@@ -612,6 +613,7 @@ watch(() => workspace.currentFile?.path, path => {
   documentHeadings.value = path ? tabHeadings.get(path) || [] : []
   focusMode.value = false
   commentDraft.value = null
+  resetTranslationSidebar()
   activeSidebarPanel.value = 'comments'
 })
 const editorRef = ref<EditorHandle | null>(null)
@@ -631,6 +633,8 @@ const translationState = ref<TranslationState>('idle')
 const translationOriginal = ref('')
 const translationTranslated = ref('')
 const translationError = ref<string | null>(null)
+const isSubmittingComment = ref(false)
+let translationRequest = 0
 const isExporting = ref(false)
 const showMcp = ref(false), mcpWritable = ref(false), mcpConfig = ref('')
 async function loadMcpConfig() {
@@ -1113,6 +1117,7 @@ async function translateMarkdownFile() {
 }
 
 function handleStartComment(anchor: CommentAnchor, text: string) {
+  focusMode.value = false
   commentDraft.value = { anchor, text }
   activeSidebarPanel.value = 'comments'
 }
@@ -1138,14 +1143,21 @@ async function handleCreateComment(anchor: CommentAnchor, content: string) {
 
 async function submitComment(content: string) {
   const draft = commentDraft.value
-  if (!draft) return
+  if (!draft || isSubmittingComment.value) return
 
-  if (await handleCreateComment(draft.anchor, content)) {
-    commentDraft.value = null
+  isSubmittingComment.value = true
+  try {
+    if (await handleCreateComment(draft.anchor, content)) {
+      commentDraft.value = null
+    }
+  } finally {
+    isSubmittingComment.value = false
   }
 }
 
 async function handleTranslate(selection: Selection) {
+  focusMode.value = false
+  const request = ++translationRequest
   activeSidebarPanel.value = 'translation'
   translationOriginal.value = selection.text
   translationTranslated.value = ''
@@ -1159,10 +1171,12 @@ async function handleTranslate(selection: Selection) {
       text: selection.text,
       ...(openaiConfig ? { openaiConfig } : {}),
     })
+    if (request !== translationRequest) return
     translationOriginal.value = result.original
     translationTranslated.value = result.translated
     translationState.value = 'success'
   } catch (error) {
+    if (request !== translationRequest) return
     console.error('Translation failed:', error)
     translationError.value = error instanceof Error ? error.message : String(error)
     translationState.value = 'error'
@@ -1170,11 +1184,16 @@ async function handleTranslate(selection: Selection) {
 }
 
 function closeTranslationSidebar() {
+  resetTranslationSidebar()
+  activeSidebarPanel.value = 'comments'
+}
+
+function resetTranslationSidebar() {
+  translationRequest += 1
   translationState.value = 'idle'
   translationOriginal.value = ''
   translationTranslated.value = ''
   translationError.value = null
-  activeSidebarPanel.value = 'comments'
 }
 
 function documentAssistantComments(): DocumentAssistantComment[] {

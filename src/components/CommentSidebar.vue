@@ -15,7 +15,7 @@
         <button class="apple-secondary-button text-xs" @click="emit('cancel')">{{ t('cancel') }}</button>
         <button
           class="apple-primary-button text-xs disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="!draftContent.trim()"
+          :disabled="submitting || !draftContent.trim()"
           @click="submitComment"
         >
           {{ t('submit') }}
@@ -78,6 +78,7 @@ import { locale, t } from '../i18n'
 const props = defineProps<{
   comments: Comment[]
   draft?: { anchor: CommentAnchor; text: string } | null
+  submitting?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -94,6 +95,7 @@ watch(() => props.draft, () => {
 })
 
 function submitComment() {
+  if (props.submitting) return
   const content = draftContent.value.trim()
   if (content) emit('submit', content)
 }
