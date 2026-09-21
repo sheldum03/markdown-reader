@@ -407,6 +407,45 @@
   color: var(--apple-blue) !important;
 }
 
+#app .apple-document-sidebar {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
+#app .apple-document-sidebar-tabs {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  border-bottom: 1px solid var(--apple-divider);
+  background: var(--apple-pearl);
+  padding: 8px 12px;
+}
+
+#app .apple-document-sidebar-tab {
+  min-height: 30px;
+  flex: 1;
+  border-radius: 9999px;
+  color: var(--apple-muted);
+  font-size: 12px;
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+#app .apple-document-sidebar-tab:hover:not(:disabled) {
+  background: #ececf0;
+  color: var(--apple-ink);
+}
+
+#app .apple-document-sidebar-tab.is-active {
+  background: var(--apple-canvas);
+  color: var(--apple-ink);
+}
+
+#app .apple-document-sidebar-tab:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
 @media (max-width: 640px) {
   #app .apple-onboarding-title {
     font-size: 34px;
@@ -430,6 +469,16 @@
   #app .apple-nav-secondary,
   #app .apple-nav-document-tools {
     display: none;
+  }
+
+  #app .apple-document-sidebar {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    width: min(22rem, 100%);
+    border-left-color: var(--apple-hairline) !important;
   }
 }
 

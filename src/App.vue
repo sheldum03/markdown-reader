@@ -239,7 +239,7 @@
       </div>
     </section>
 
-    <main class="flex-1 flex overflow-hidden">
+    <main class="relative flex-1 flex overflow-hidden">
       <aside
         v-if="workspace.folderPath"
         v-show="!focusMode"
@@ -373,21 +373,56 @@
             <HtmlRenderer v-if="/\.(html?|xhtml)$/i.test(tab.path)" :file="tab" />
             <YamlEditor v-else-if="/\.yaml$/i.test(tab.path)" :ref="(el: any) => setTabEditor(tab.path, el)" :file="tab" :save-content="(content: string) => saveTabFile(tab.path, content)" />
             <MarkdownDocument v-else :ref="(el: any) => setTabEditor(tab.path, el)" :file="tab" :save-content="(content: string) => saveTabFile(tab.path, content)"
-              @change="tab.draft = $event" @create-comment="handleCreateComment" @translate="handleTranslate"
+              @change="tab.draft = $event" @start-comment="handleStartComment" @translate="handleTranslate"
               @headings="tabHeadings.set(tab.path, $event); tab.path === workspace.currentFile?.path && (documentHeadings = $event)" @focus="focusMode = $event" />
           </div>
         </div>
       </section>
 
       <aside
-        v-if="workspace.currentFile && comments.list.length > 0 && !focusMode"
-        class="w-80 bg-white border-l border-gray-200 overflow-auto"
+        v-if="showDocumentSidebar"
+        class="apple-document-sidebar w-[22rem] shrink-0 overflow-hidden border-l border-gray-200 bg-white"
+        aria-label="Document tools"
       >
+        <div class="apple-document-sidebar-tabs" role="tablist" :aria-label="t('documentTools')">
+          <button
+            role="tab"
+            class="apple-document-sidebar-tab"
+            :class="{ 'is-active': activeSidebarPanel === 'comments' }"
+            :aria-selected="activeSidebarPanel === 'comments'"
+            @click="activeSidebarPanel = 'comments'"
+          >
+            {{ t('comments', { count: comments.list.length }) }}
+          </button>
+          <button
+            role="tab"
+            class="apple-document-sidebar-tab"
+            :class="{ 'is-active': activeSidebarPanel === 'translation' }"
+            :aria-selected="activeSidebarPanel === 'translation'"
+            :disabled="translationState === 'idle'"
+            @click="activeSidebarPanel = 'translation'"
+          >
+            {{ t('translation') }}
+          </button>
+        </div>
         <CommentSidebar
+          v-if="activeSidebarPanel === 'comments'"
           :comments="comments.list"
+          :draft="commentDraft"
           @locate="locateComment"
           @resolve="handleResolveComment"
           @delete="handleDeleteComment"
+          @submit="submitComment"
+          @cancel="commentDraft = null"
+        />
+        <TranslationCard
+          v-else
+          :state="translationState"
+          :original="translationOriginal"
+          :translated="translationTranslated"
+          :service="translationService"
+          :error="translationError"
+          @close="closeTranslationSidebar"
         />
       </aside>
     </main>
@@ -407,16 +442,6 @@
     >
       {{ exportMessage }}
     </div>
-
-    <TranslationCard
-      v-if="translationState !== 'idle'"
-      :state="translationState"
-      :original="translationOriginal"
-      :translated="translationTranslated"
-      :service="translationService"
-      :error="translationError"
-      @close="translationState = 'idle'"
-    />
 
     <DocumentAssistantPanel
       v-if="assistantResult"
@@ -489,6 +514,7 @@ import CommentSidebar from './components/CommentSidebar.vue'
 import type { OutlineHeading } from './lib/markdown/renderer'
 import './styles/markdown.css'
 import type { Selection } from './utils/selection'
+import type { CommentAnchor } from './utils/comment-anchor'
 import { locale, setLocale, t, type AppLocale } from './i18n'
 
 const MarkdownDocument = defineAsyncComponent(() =>
@@ -510,6 +536,7 @@ type FileFilter = 'all' | 'markdown' | 'html'
 type DisplayMode = 'filename' | 'title'
 type TranslationService = 'ollama' | 'tencent' | 'openai-compatible'
 type TranslationState = 'idle' | 'loading' | 'success' | 'error'
+type SidebarPanel = 'comments' | 'translation'
 type DocumentAssistantMode = 'suggestions' | 'optimize'
 type HtmlGenerationMode = 'default' | 'ai-reading'
 interface TranslationResult {
@@ -518,6 +545,10 @@ interface TranslationResult {
   sourceLang: string
   targetLang: string
   service: TranslationService
+}
+interface PendingComment {
+  anchor: CommentAnchor
+  text: string
 }
 interface MarkdownTranslationResult {
   outputPath: string
@@ -575,7 +606,14 @@ const locateToken = ref(0)
 const outlineOpen = ref(false)
 const documentHeadings = ref<OutlineHeading[]>([])
 const focusMode = ref(false)
-watch(() => workspace.currentFile?.path, path => { documentHeadings.value = path ? tabHeadings.get(path) || [] : []; focusMode.value = false })
+const activeSidebarPanel = ref<SidebarPanel>('comments')
+const commentDraft = ref<PendingComment | null>(null)
+watch(() => workspace.currentFile?.path, path => {
+  documentHeadings.value = path ? tabHeadings.get(path) || [] : []
+  focusMode.value = false
+  commentDraft.value = null
+  activeSidebarPanel.value = 'comments'
+})
 const editorRef = ref<EditorHandle | null>(null)
 const translationService = ref<TranslationService>('ollama')
 const htmlGenerationMode = ref<HtmlGenerationMode>('default')
@@ -627,6 +665,13 @@ const currentIsHtml = computed(() => {
 })
 const currentIsYaml = computed(() => {
   return workspace.currentFile?.path.toLowerCase().endsWith('.yaml') || false
+})
+const showDocumentSidebar = computed(() => {
+  return Boolean(
+    workspace.currentFile
+    && !focusMode.value
+    && (comments.list.length > 0 || commentDraft.value || translationState.value !== 'idle')
+  )
 })
 const openAiConfigComplete = computed(() => {
   return Boolean(openAiBaseUrl.value.trim() && openAiModel.value.trim() && openAiApiKey.value.trim())
@@ -1067,8 +1112,13 @@ async function translateMarkdownFile() {
   }
 }
 
-async function handleCreateComment(anchor: any, content: string) {
-  if (!workspace.currentFile) return
+function handleStartComment(anchor: CommentAnchor, text: string) {
+  commentDraft.value = { anchor, text }
+  activeSidebarPanel.value = 'comments'
+}
+
+async function handleCreateComment(anchor: CommentAnchor, content: string) {
+  if (!workspace.currentFile) return false
 
   try {
     await comments.saveComment({
@@ -1079,12 +1129,24 @@ async function handleCreateComment(anchor: any, content: string) {
     })
 
     console.log('Comment created')
+    return true
   } catch (error) {
     console.error('Failed to create comment:', error)
+    return false
+  }
+}
+
+async function submitComment(content: string) {
+  const draft = commentDraft.value
+  if (!draft) return
+
+  if (await handleCreateComment(draft.anchor, content)) {
+    commentDraft.value = null
   }
 }
 
 async function handleTranslate(selection: Selection) {
+  activeSidebarPanel.value = 'translation'
   translationOriginal.value = selection.text
   translationTranslated.value = ''
   translationError.value = null
@@ -1105,6 +1167,14 @@ async function handleTranslate(selection: Selection) {
     translationError.value = error instanceof Error ? error.message : String(error)
     translationState.value = 'error'
   }
+}
+
+function closeTranslationSidebar() {
+  translationState.value = 'idle'
+  translationOriginal.value = ''
+  translationTranslated.value = ''
+  translationError.value = null
+  activeSidebarPanel.value = 'comments'
 }
 
 function documentAssistantComments(): DocumentAssistantComment[] {

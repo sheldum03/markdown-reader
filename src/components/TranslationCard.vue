@@ -1,6 +1,6 @@
 <template>
-  <div class="apple-modal fixed right-4 bottom-16 z-50 w-96 max-w-[calc(100vw-2rem)] border border-gray-200">
-    <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+  <div class="translation-sidebar min-h-0 flex flex-1 flex-col bg-white">
+    <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
       <div class="text-sm font-medium text-gray-800">
         {{ t('translation') }}
         <span class="text-xs text-gray-400 ml-1">{{ serviceLabel }}</span>
@@ -10,31 +10,35 @@
       </button>
     </div>
 
-    <div class="p-4 space-y-3">
-      <div class="text-xs text-gray-500">{{ t('original') }}</div>
-      <div class="text-sm text-gray-700 bg-gray-50 rounded p-2 whitespace-pre-wrap">
-        {{ original }}
-      </div>
-
-      <div v-if="state === 'loading'" class="text-sm text-gray-500">
-        {{ t('translating') }}
-      </div>
-
-      <div v-else-if="state === 'error'" class="text-sm text-red-500">
-        {{ error }}
-      </div>
-
-      <div v-else-if="state === 'success'" class="space-y-2">
-        <div class="text-xs text-gray-500">{{ t('translation') }}</div>
-        <div class="text-sm text-gray-900 bg-blue-50 rounded p-2 whitespace-pre-wrap">
-          {{ translated }}
+    <div class="min-h-0 flex-1 overflow-auto p-4">
+      <div v-if="state !== 'idle'" class="space-y-4">
+        <div>
+          <div class="text-xs text-gray-500">{{ t('original') }}</div>
+          <div class="mt-2 whitespace-pre-wrap rounded-[11px] bg-gray-50 p-3 text-sm leading-6 text-gray-700">
+            {{ original }}
+          </div>
         </div>
-        <button
-          class="apple-primary-button text-xs"
-          @click="copyTranslated"
-        >
-          {{ t('copyTranslation') }}
-        </button>
+
+        <div v-if="state === 'loading'" class="text-sm text-gray-500">
+          {{ t('translating') }}
+        </div>
+
+        <div v-else-if="state === 'error'" class="text-sm text-red-500">
+          {{ error }}
+        </div>
+
+        <div v-else-if="state === 'success'" class="space-y-2">
+          <div class="text-xs text-gray-500">{{ t('translation') }}</div>
+          <div class="whitespace-pre-wrap rounded-[11px] bg-blue-50 p-3 text-sm leading-6 text-gray-900">
+            {{ translated }}
+          </div>
+          <button
+            class="apple-primary-button text-xs"
+            @click="copyTranslated"
+          >
+            {{ t('copyTranslation') }}
+          </button>
+        </div>
       </div>
     </div>
   </div>

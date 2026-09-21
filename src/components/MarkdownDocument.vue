@@ -11,9 +11,9 @@
     <p v-if="modeError" role="alert" class="px-4 py-2 text-sm text-red-600">{{ modeError }}</p>
     <div class="flex-1 min-h-0 min-w-0 flex">
       <div v-if="editorStarted" v-show="mode !== 'read'" class="flex-1 min-w-0 overflow-hidden" :class="{ 'border-r border-gray-200': mode === 'split' }">
-        <component :is="editorKind === 'source' ? SourceEditor : MilkdownEditor" ref="editor" :file="file" :save-content="saveContent" @change="draft = $event; emit('change', $event)" @scroll="syncPreview" @create-comment="forwardComment" @translate="emit('translate', $event)" />
+        <component :is="editorKind === 'source' ? SourceEditor : MilkdownEditor" ref="editor" :file="file" :save-content="saveContent" @change="draft = $event; emit('change', $event)" @scroll="syncPreview" @start-comment="forwardComment" @translate="emit('translate', $event)" />
       </div>
-      <MarkdownPreview v-show="mode !== 'edit'" ref="preview" class="flex-1 min-w-0" :content="previewDraft" :file-path="file.path" @headings="emit('headings', $event)" @scroll="syncEditor" @create-comment="forwardComment" @translate="emit('translate', $event)" />
+      <MarkdownPreview v-show="mode !== 'edit'" ref="preview" class="flex-1 min-w-0" :content="previewDraft" :file-path="file.path" @headings="emit('headings', $event)" @scroll="syncEditor" @start-comment="forwardComment" @translate="emit('translate', $event)" />
     </div>
     <div class="document-status px-4 py-1 border-t border-gray-100 text-xs text-gray-400 flex gap-4">
       <span>{{ stats.characters.toLocaleString() }} 字符</span><span>{{ stats.lines.toLocaleString() }} 行</span><span>约 {{ stats.minutes }} 分钟阅读</span>
@@ -39,7 +39,7 @@ const MilkdownEditor = defineAsyncComponent({
 })
 const props = defineProps<{ file: { path: string; content: string }; saveContent: (content: string) => Promise<void> }>()
 const emit = defineEmits<{
-  createComment: [anchor: ReturnType<typeof createAnchor>, content: string]
+  startComment: [anchor: ReturnType<typeof createAnchor>, text: string]
   translate: [selection: Selection]
   headings: [headings: OutlineHeading[]]
   focus: [focused: boolean]
@@ -69,7 +69,7 @@ const switching = ref(false)
 const modeError = ref('')
 const stats = computed(() => ({ characters: draft.value.length, lines: (draft.value.match(/\n/g)?.length || 0) + 1, minutes: Math.max(1, Math.ceil(draft.value.length / 600)) }))
 watch(() => props.file.content, content => { if (!editorStarted.value) draft.value = content })
-function forwardComment(anchor: ReturnType<typeof createAnchor>, content: string) { emit('createComment', anchor, content) }
+function forwardComment(anchor: ReturnType<typeof createAnchor>, text: string) { emit('startComment', anchor, text) }
 function syncPreview(line: number) { if (mode.value === 'split') preview.value?.scrollToLine(line) }
 function syncEditor(line: number) { if (mode.value === 'split') editor.value?.scrollToLine?.(line) }
 async function toggleEditor() {

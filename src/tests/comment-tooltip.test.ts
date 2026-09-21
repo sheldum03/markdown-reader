@@ -4,7 +4,7 @@ import CommentTooltip from '../components/CommentTooltip.vue'
 import type { Selection } from '../utils/selection'
 
 describe('CommentTooltip', () => {
-  it('提交时使用打开对话框时的选区快照', async () => {
+  it('将当前选区交给评论侧边栏', async () => {
     const selection: Selection = {
       text: 'Comment target phrase',
       start: 5,
@@ -24,14 +24,9 @@ describe('CommentTooltip', () => {
       },
     })
 
-    await wrapper.find('button').trigger('click')
-    await wrapper.setProps({ selection: null })
-    await wrapper.find('textarea').setValue('Manual acceptance comment')
-    await wrapper.findAll('button').find(button => button.text() === 'Submit')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === 'Add comment')!.trigger('click')
 
-    expect(wrapper.emitted('addComment')).toEqual([
-      ['Manual acceptance comment', selection],
-    ])
+    expect(wrapper.emitted('startComment')).toEqual([[selection]])
   })
 
   it('点击翻译时发出当前选区', async () => {

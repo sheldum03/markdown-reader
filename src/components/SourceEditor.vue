@@ -22,7 +22,7 @@
       <button class="mr-4 text-blue-600" @click="applyFormat">应用格式</button><button @click="formatPreview = null">取消</button>
     </div>
     <div ref="host" class="flex-1 min-h-0 overflow-hidden" />
-    <CommentTooltip :show="!!selection" :selection="selection" @add-comment="addComment" @translate="emit('translate', $event)" @close="selection = null" />
+    <CommentTooltip :show="!!selection" :selection="selection" @start-comment="startComment" @translate="emit('translate', $event)" @close="selection = null" />
   </div>
 </template>
 <script setup lang="ts">
@@ -39,7 +39,7 @@ import { DEFAULT_CJK_FORMATTING, type CJKFormattingSettings } from '../lib/cjkFo
 import { t } from '../i18n'
 import type { Selection } from '../utils/selection'
 const props = defineProps<{ file: { path: string; content: string }; saveContent: (content: string) => Promise<void> }>()
-const emit = defineEmits<{ change: [content: string]; createComment: [anchor: ReturnType<typeof createAnchor>, content: string]; translate: [selection: Selection]; scroll: [line: number] }>()
+const emit = defineEmits<{ change: [content: string]; startComment: [anchor: ReturnType<typeof createAnchor>, text: string]; translate: [selection: Selection]; scroll: [line: number] }>()
 const host = ref<HTMLElement | null>(null)
 const view = shallowRef<EditorView | null>(null)
 const content = shallowRef(props.file.content)
@@ -149,7 +149,7 @@ async function previewFormat() {
   formatter.postMessage({ source: original, settings: { ...formatSettings } })
 }
 function applyFormat() { if (formatPreview.value !== null) replaceDraft(formatPreview.value); formatPreview.value = null }
-function addComment(value: string, selected: Selection) { emit('createComment', createAnchor(content.value, selected.start, selected.end), value); selection.value = null }
+function startComment(selected: Selection) { emit('startComment', createAnchor(content.value, selected.start, selected.end), selected.text); selection.value = null }
 function scrollToLine(line: number) { const v = view.value; if (!v) return; const target = Math.max(1, Math.min(v.state.doc.lines, Math.floor(line))); programmaticScroll = true; v.scrollDOM.scrollTop = v.lineBlockAt(v.state.doc.line(target).from).top }
 onBeforeUnmount(() => { clearTimeout(timer); formatter?.terminate(); removeScrollIntent?.(); view.value?.destroy(); if (import.meta.env.MODE === 'e2e') delete (window as any).__markdownHtmlE2E })
 defineExpose({ saveCurrentContent, requestDiscardChanges, getCurrentContent: () => content.value, replaceContent: async (value: string) => { replaceDraft(value); await saveCurrentContent() }, scrollToHeading: (_: string, __: number, line = 1) => scrollToLine(line), scrollToLine,

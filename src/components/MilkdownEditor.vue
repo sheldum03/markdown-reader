@@ -38,7 +38,7 @@
       <CommentTooltip
         :show="showCommentTooltip"
         :selection="currentSelection"
-        @addComment="handleAddComment"
+        @startComment="handleStartComment"
         @translate="handleTranslate"
         @close="hideCommentTooltip"
       />
@@ -71,7 +71,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   change: [content: string]
-  createComment: [anchor: any, content: string]
+  startComment: [anchor: ReturnType<typeof createAnchor>, text: string]
   translate: [selection: Selection]
 }>()
 
@@ -202,14 +202,14 @@ function setupE2EHelpers() {
 }
 
 // 处理创建评论
-function handleAddComment(content: string, selection: Selection) {
+function handleStartComment(selection: Selection) {
   const anchor = createAnchor(
     currentContent.value,
     selection.start,
     selection.end
   )
 
-  emit('createComment', anchor, content)
+  emit('startComment', anchor, selection.text)
   hideCommentTooltip()
 }
 

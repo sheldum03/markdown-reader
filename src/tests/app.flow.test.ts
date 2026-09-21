@@ -58,7 +58,7 @@ vi.mock('../components/FileTree.vue', () => ({
 vi.mock('../components/MarkdownDocument.vue', () => ({
   default: {
     props: ['file', 'saveContent'],
-    emits: ['createComment', 'translate', 'headings'],
+    emits: ['startComment', 'translate', 'headings'],
     mounted() {
       milkdownLifecycle.mountCount++
       ;(this as any).$emit('headings', [{ text: (this as any).file.path, line: 1, level: 1, id: 'heading-1' }])
@@ -98,7 +98,7 @@ vi.mock('../components/MarkdownDocument.vue', () => ({
         </button>
         <button
           data-testid="add-comment"
-          @click="$emit('createComment', { quote: 'Edited keyword', offset: 12, length: 14 }, 'Review note')"
+          @click="$emit('startComment', { quote: 'Edited keyword', offset: 12, length: 14 }, 'Edited keyword')"
         >
           添加评论
         </button>
@@ -126,10 +126,11 @@ vi.mock('../components/HtmlRenderer.vue', () => ({
 
 vi.mock('../components/CommentSidebar.vue', () => ({
   default: {
-    props: ['comments'],
-    emits: ['resolve', 'delete'],
+    props: ['comments', 'draft'],
+    emits: ['resolve', 'delete', 'submit', 'cancel'],
     template: `
       <div data-testid="comment-sidebar">
+        <button v-if="draft" data-testid="submit-comment" @click="$emit('submit', 'Review note')">提交评论</button>
         <div v-for="comment in comments" :key="comment.id">
           {{ comment.content }}|{{ comment.status }}
           <button data-testid="resolve-comment" @click="$emit('resolve', comment.id)">解决评论</button>
@@ -297,6 +298,8 @@ describe('App core user flow', () => {
     expect(fileContent).toContain('Edited keyword')
 
     await wrapper.get('[data-testid="add-comment"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="submit-comment"]').trigger('click')
     await flushPromises()
     expect(savedComments).toHaveLength(1)
     expect(savedComments[0]).toEqual(expect.objectContaining({

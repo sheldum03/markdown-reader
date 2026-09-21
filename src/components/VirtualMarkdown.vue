@@ -7,7 +7,7 @@
       <section v-for="block in visible" :key="block.index" :data-block="block.index" v-html="block.html" />
     </article>
     <div :style="{ height: bottom + 'px' }" />
-    <CommentTooltip :show="!!selection" :selection="selection" @add-comment="addComment" @translate="emit('translate', $event)" @close="selection = null" />
+    <CommentTooltip :show="!!selection" :selection="selection" @start-comment="startComment" @translate="emit('translate', $event)" @close="selection = null" />
   </div>
 </template>
 <script setup lang="ts">
@@ -20,7 +20,7 @@ import type { Selection } from '../utils/selection'
 import CommentTooltip from './CommentTooltip.vue'
 import { resolveImages, handleMarkdownLink } from '../lib/markdown/dom'
 const props = defineProps<{ content: string; filePath: string }>()
-const emit = defineEmits<{ headings: [headings: OutlineHeading[]]; scroll: [line: number]; createComment: [anchor: ReturnType<typeof createAnchor>, content: string]; translate: [selection: Selection] }>()
+const emit = defineEmits<{ headings: [headings: OutlineHeading[]]; scroll: [line: number]; startComment: [anchor: ReturnType<typeof createAnchor>, text: string]; translate: [selection: Selection] }>()
 const scroller = ref<HTMLElement | null>(null), root = ref<HTMLElement | null>(null)
 const visible = shallowRef<{ index: number; html: string }[]>([])
 const top = ref(0), bottom = ref(0), loading = ref(true), error = ref(''), selection = ref<Selection | null>(null)
@@ -100,7 +100,7 @@ function scrollToLine(line: number) {
   suppressScroll = true; scroller.value.scrollTop = prefix[index]; renderWindow(); pendingLine = null
 }
 function selectText() { selection.value = root.value ? mapDomSelection(root.value, props.content) : null }
-function addComment(value: string, selected: Selection) { emit('createComment', createAnchor(props.content, selected.start, selected.end), value); selection.value = null }
+function startComment(selected: Selection) { emit('startComment', createAnchor(props.content, selected.start, selected.end), selected.text); selection.value = null }
 async function handleClick(event: MouseEvent) {
   const link = (event.target as HTMLElement).closest('a')
   const href = link?.getAttribute('href') || ''

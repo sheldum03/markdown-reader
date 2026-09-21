@@ -1,10 +1,10 @@
 <template>
-  <VirtualMarkdown v-if="content.length >= 500_000" ref="virtual" :content="content" :file-path="filePath" @headings="emit('headings', $event)" @scroll="emit('scroll', $event)" @create-comment="(anchor, value) => emit('createComment', anchor, value)" @translate="emit('translate', $event)" />
+  <VirtualMarkdown v-if="content.length >= 500_000" ref="virtual" :content="content" :file-path="filePath" @headings="emit('headings', $event)" @scroll="emit('scroll', $event)" @start-comment="(anchor, text) => emit('startComment', anchor, text)" @translate="emit('translate', $event)" />
   <div v-else ref="scroller" class="markdown-preview h-full overflow-auto relative" :aria-busy="loading" @scroll="onScroll" @wheel="suppressScroll = false" @pointerdown="suppressScroll = false" @keydown="suppressScroll = false">
     <div v-if="loading" role="status" class="px-6 py-2 text-sm text-gray-500">正在排版文档…</div>
     <div v-if="error" role="alert" class="p-6 text-red-600">{{ error }}</div>
     <article :key="renderVersion" ref="root" class="markdown-body" @click="handleClick" @mouseup="selectText" @keyup="selectText" v-html="html" />
-    <CommentTooltip :show="!!selection" :selection="selection" @add-comment="addComment" @translate="translate" @close="selection = null" />
+    <CommentTooltip :show="!!selection" :selection="selection" @start-comment="startComment" @translate="translate" @close="selection = null" />
   </div>
 </template>
 
@@ -24,7 +24,7 @@ const props = defineProps<{ content: string; filePath: string }>()
 const emit = defineEmits<{
   scroll: [line: number]
   headings: [headings: OutlineHeading[]]
-  createComment: [anchor: ReturnType<typeof createAnchor>, content: string]
+  startComment: [anchor: ReturnType<typeof createAnchor>, text: string]
   translate: [selection: Selection]
 }>()
 const virtual = ref<InstanceType<typeof VirtualMarkdown> | null>(null)
@@ -116,9 +116,9 @@ function scrollToLine(line: number) {
   suppressScroll = true
   scroller.value.scrollTop += target.getBoundingClientRect().top - scroller.value.getBoundingClientRect().top
 }
-function addComment(content: string, selected: Selection) {
+function startComment(selected: Selection) {
   const anchor = createAnchor(props.content, selected.start, selected.end)
-  emit('createComment', anchor, content)
+  emit('startComment', anchor, selected.text)
   selection.value = null
 }
 function translate(selected: Selection) { emit('translate', selected); selection.value = null }
