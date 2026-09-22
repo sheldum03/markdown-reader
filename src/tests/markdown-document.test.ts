@@ -53,4 +53,18 @@ describe('Markdown document modes', () => {
     expect(wrapper.get('[data-editor]').isVisible()).toBe(true)
     wrapper.unmount()
   })
+  it('places Chinese-copy translation beside rich-text editing and forwards the action', async () => {
+    const { wrapper } = setup()
+    const richTextButton = wrapper.get('[aria-label="富文本编辑"]')
+    const translationButton = wrapper.get('[aria-label="Translate to Chinese copy"]')
+
+    expect(richTextButton.element.nextElementSibling).toBe(translationButton.element)
+    await translationButton.trigger('click')
+    expect(wrapper.emitted('translateChineseCopy')).toEqual([[]])
+
+    await wrapper.setProps({ isMarkdownTranslating: true, translationDisabled: true })
+    expect(wrapper.get('[aria-label="Translating..."]')).toBeDefined()
+    expect((wrapper.get('[aria-label="Translating..."]').element as HTMLButtonElement).disabled).toBe(true)
+    wrapper.unmount()
+  })
 })

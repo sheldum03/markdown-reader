@@ -14,8 +14,8 @@ vi.mock('../components/FileTree.vue', () => ({
 
 vi.mock('../components/MarkdownDocument.vue', () => ({
   default: {
-    props: ['file', 'saveContent'],
-    emits: ['createComment'],
+    props: ['file', 'saveContent', 'isMarkdownTranslating', 'translationDisabled'],
+    emits: ['startComment', 'translate', 'translateChineseCopy', 'headings', 'focus'],
     template: '<div data-testid="editor" />',
   },
 }))

@@ -86,13 +86,6 @@
           class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
         />
         <IconButton
-          icon="translate"
-          :label="isMarkdownTranslating ? t('translating') : t('translateChineseCopy')"
-          @click="translateMarkdownFile"
-          class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
-          :disabled="!currentIsMarkdown || isMarkdownTranslating || (translationService === 'openai-compatible' && !openAiConfigComplete)"
-        />
-        <IconButton
           icon="comment"
           :label="isAssistantRunning && assistantMode === 'suggestions' ? t('reviewing') : t('suggestFromComments')"
           @click="runDocumentAssistant('suggestions')"
@@ -398,7 +391,9 @@
             <HtmlRenderer v-if="/\.(html?|xhtml)$/i.test(tab.path)" :file="tab" />
             <YamlEditor v-else-if="/\.yaml$/i.test(tab.path)" :ref="(el: any) => setTabEditor(tab.path, el)" :file="tab" :save-content="(content: string) => saveTabFile(tab.path, content)" />
             <MarkdownDocument v-else :ref="(el: any) => setTabEditor(tab.path, el)" :file="tab" :save-content="(content: string) => saveTabFile(tab.path, content)"
+              :is-markdown-translating="isMarkdownTranslating" :translation-disabled="isMarkdownTranslating || (translationService === 'openai-compatible' && !openAiConfigComplete)"
               @change="tab.draft = $event" @start-comment="handleStartComment" @translate="handleTranslate"
+              @translate-chinese-copy="translateMarkdownFile"
               @headings="tabHeadings.set(tab.path, $event); tab.path === workspace.currentFile?.path && (documentHeadings = $event)" @focus="focusMode = $event" />
           </div>
         </div>

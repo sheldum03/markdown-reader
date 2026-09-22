@@ -6,6 +6,7 @@
         <IconButton v-for="item in modes" :key="item.value" :icon="item.icon" :label="item.label" :aria-pressed="mode === item.value" :disabled="switching" @click="setMode(item.value)" />
       </div>
       <IconButton :disabled="!richSupported" :title="richSupported ? '' : '此文档使用保真源码编辑，支持全部扩展语法和大文档'" :icon="editorKind === 'source' ? 'markdown' : 'code'" :label="editorKind === 'source' ? '富文本编辑' : '源码编辑'" :aria-pressed="editorKind === 'rich'" @click="toggleEditor" />
+      <IconButton icon="translate" :label="isMarkdownTranslating ? t('translating') : t('translateChineseCopy')" :disabled="translationDisabled" @click="emit('translateChineseCopy')" />
       <IconButton :icon="focused ? 'unfocus' : 'focus'" :label="focused ? '退出专注' : '专注阅读'" :aria-pressed="focused" @click="focused = !focused; emit('focus', focused)" />
     </div>
     <p v-if="modeError" role="alert" class="px-4 py-2 text-sm text-red-600">{{ modeError }}</p>
@@ -30,6 +31,7 @@ import type { IconName } from '../lib/icons'
 import type { OutlineHeading } from '../lib/markdown/renderer'
 import type { Selection } from '../utils/selection'
 import type { createAnchor } from '../utils/comment-anchor'
+import { t } from '../i18n'
 
 const SourceEditor = defineAsyncComponent(() => { performance.mark('reader:load:source'); return import('./SourceEditor.vue').then(module => module.default) })
 const editorKind = ref<'source' | 'rich'>('source')
@@ -39,10 +41,16 @@ const MilkdownEditor = defineAsyncComponent({
   errorComponent: { render: () => h('p', { role: 'alert', class: 'p-6 text-red-600' }, '编辑器加载失败，请重新打开文件。') },
   delay: 100,
 })
-const props = defineProps<{ file: { path: string; content: string }; saveContent: (content: string) => Promise<void> }>()
+const props = defineProps<{
+  file: { path: string; content: string }
+  saveContent: (content: string) => Promise<void>
+  isMarkdownTranslating?: boolean
+  translationDisabled?: boolean
+}>()
 const emit = defineEmits<{
   startComment: [anchor: ReturnType<typeof createAnchor>, text: string]
   translate: [selection: Selection]
+  translateChineseCopy: []
   headings: [headings: OutlineHeading[]]
   focus: [focused: boolean]
   change: [content: string]

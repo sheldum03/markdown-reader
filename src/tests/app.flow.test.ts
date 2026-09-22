@@ -57,8 +57,8 @@ vi.mock('../components/FileTree.vue', () => ({
 
 vi.mock('../components/MarkdownDocument.vue', () => ({
   default: {
-    props: ['file', 'saveContent'],
-    emits: ['startComment', 'translate', 'headings', 'focus'],
+    props: ['file', 'saveContent', 'isMarkdownTranslating', 'translationDisabled'],
+    emits: ['startComment', 'translate', 'translateChineseCopy', 'headings', 'focus'],
     mounted() {
       milkdownLifecycle.mountCount++
       ;(this as any).$emit('headings', [{ text: (this as any).file.path, line: 1, level: 1, id: 'heading-1' }])
@@ -107,6 +107,13 @@ vi.mock('../components/MarkdownDocument.vue', () => ({
           @click="$emit('translate', { text: 'Hello', start: 0, end: 5, rect: { left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10 } })"
         >
           翻译选区
+        </button>
+        <button
+          data-testid="translate-markdown-file"
+          :disabled="translationDisabled"
+          @click="$emit('translateChineseCopy')"
+        >
+          {{ isMarkdownTranslating ? 'Translating…' : 'Translate to Chinese copy' }}
         </button>
         <button data-testid="focus-document" @click="$emit('focus', true)">专注阅读</button>
       </div>
@@ -1103,10 +1110,7 @@ describe('App core user flow', () => {
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
 
-    await wrapper
-      .findAll('button')
-      .find(button => button.text() === 'Translate to Chinese copy')!
-      .trigger('click')
+    await wrapper.get('[data-active-document="true"] [data-testid="translate-markdown-file"]').trigger('click')
     await flushPromises()
 
     expect(milkdownLifecycle.saveCurrentContentRequests).toBe(1)
@@ -1156,10 +1160,11 @@ describe('App core user flow', () => {
     await fileButtons[0].trigger('click')
     await flushPromises()
 
-    const translateButton = wrapper.findAll('button').find(button => button.text() === 'Translate to Chinese copy')!
+    const translateButton = wrapper.get('[data-active-document="true"] [data-testid="translate-markdown-file"]')
     await translateButton.trigger('click')
     await flushPromises()
 
+    expect((translateButton.element as HTMLButtonElement).disabled).toBe(true)
     expect((wrapper.findAll('button').find(button => button.text() === 'Open folder')!.element as HTMLButtonElement).disabled).toBe(true)
     await fileButtons[1].trigger('click')
     await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
@@ -1207,10 +1212,7 @@ describe('App core user flow', () => {
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
 
-    await wrapper
-      .findAll('button')
-      .find(button => button.text() === 'Translate to Chinese copy')!
-      .trigger('click')
+    await wrapper.get('[data-active-document="true"] [data-testid="translate-markdown-file"]').trigger('click')
     await flushPromises()
 
     expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# Hello')
@@ -1470,10 +1472,7 @@ describe('App core user flow', () => {
     expect(wrapper.find('[data-testid="editor"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="html-renderer"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="rendered-html"]').text()).toContain('Page')
-    expect(
-      wrapper.findAll('button').find(button => button.text() === 'Translate to Chinese copy')!
-        .attributes('disabled')
-    ).toBeDefined()
+    expect(wrapper.find('[data-testid="translate-markdown-file"]').exists()).toBe(false)
 
   })
 })
