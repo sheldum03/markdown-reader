@@ -1,6 +1,8 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "load_openai_api_key",
+            "save_openai_api_key",
             "list_files",
             "read_file",
             "write_file",

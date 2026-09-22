@@ -834,7 +834,7 @@ describe('App core user flow', () => {
     expect(wrapper.find('[data-testid="comment-sidebar"]').exists()).toBe(true)
   })
 
-  it('将 OpenAI 兼容配置传给翻译命令且不持久化 API Key', async () => {
+  it('将 OpenAI 兼容配置传给翻译命令且仅通过应用配置保存 API Key', async () => {
     vi.mocked(open).mockResolvedValue('/tmp/workspace')
     vi.mocked(invoke).mockImplementation(async (command: string, args?: any) => {
       if (command === 'list_files') {
@@ -884,8 +884,28 @@ describe('App core user flow', () => {
     expect(window.localStorage.getItem('md-html-reader.openai-compatible.apiKey')).toBeNull()
   })
 
+  it('启动后从应用配置恢复 OpenAI API Key', async () => {
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === 'load_openai_api_key') return 'saved-api-key'
+      throw new Error(`Unexpected command: ${command}`)
+    })
+
+    const pinia = createPinia()
+    useWorkspaceStore(pinia).folderPath = '/tmp/workspace'
+    const wrapper = mount(App, { global: { plugins: [pinia] } })
+    await flushPromises()
+    await wrapper.get('[aria-label="Configure OpenAI-compatible model"]').trigger('click')
+
+    expect((wrapper.get('input[placeholder="sk-..."]').element as HTMLInputElement).value).toBe('saved-api-key')
+  })
+
   it('保存、测试并拉取 OpenAI 兼容模型配置', async () => {
     vi.mocked(invoke).mockImplementation(async (command: string, args?: any) => {
+      if (command === 'load_openai_api_key') return null
+      if (command === 'save_openai_api_key') {
+        expect(args).toEqual({ apiKey: 'test-api-key' })
+        return undefined
+      }
       if (command === 'test_openai_compatible_connection') {
         expect(args).toEqual({
           baseUrl: 'https://api.deepseek.com/v1',

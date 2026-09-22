@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod app_config;
 mod browser_preview;
 mod comments;
 mod export;
@@ -35,6 +36,8 @@ fn main() {
 
     builder
         .invoke_handler(tauri::generate_handler![
+            app_config::load_openai_api_key,
+            app_config::save_openai_api_key,
             mcp::mcp_configuration,
             fs_handler::list_files,
             fs_handler::read_file,

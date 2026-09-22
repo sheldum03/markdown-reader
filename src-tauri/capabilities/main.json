@@ -6,6 +6,8 @@
     "core:webview:allow-create-webview-window",
     "dialog:default",
     "shell:allow-open",
+    "allow-load-openai-api-key",
+    "allow-save-openai-api-key",
     "allow-list-files",
     "allow-read-file",
     "allow-write-file",

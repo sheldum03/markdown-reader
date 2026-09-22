@@ -910,6 +910,25 @@ function persistOpenAiSettings() {
   }
 }
 
+async function loadOpenAiApiKey() {
+  try {
+    openAiApiKey.value = (await invoke<string | null>('load_openai_api_key')) || ''
+  } catch {
+    // Keep the empty field when the user configuration file is unavailable.
+  }
+}
+
+async function persistOpenAiApiKey() {
+  try {
+    const apiKey = openAiApiKey.value.trim()
+    if (!apiKey) return
+    await invoke('save_openai_api_key', { apiKey })
+    openAiConfigError.value = null
+  } catch (error) {
+    openAiConfigError.value = error instanceof Error ? error.message : String(error)
+  }
+}
+
 function openAiConnectionPayload() {
   const baseUrl = openAiBaseUrl.value.trim()
   const apiKey = openAiApiKey.value.trim()
@@ -919,10 +938,12 @@ function openAiConnectionPayload() {
   return { baseUrl, apiKey }
 }
 
-function saveOpenAiConfiguration() {
+async function saveOpenAiConfiguration() {
   try {
     openAiConnectionPayload()
     persistOpenAiSettings()
+    await persistOpenAiApiKey()
+    if (openAiConfigError.value) return
     openAiConfigError.value = null
     openAiConfigMessage.value = t('settingsSaved')
   } catch (error) {
@@ -1574,6 +1595,7 @@ function handleKeyDown(event: KeyboardEvent) {
 
 onMounted(async () => {
   window.addEventListener('keydown', handleKeyDown)
+  void loadOpenAiApiKey()
   const unlisten = await getCurrentWindow().onCloseRequested(async (event) => {
     if (!(await protectTabs('close-window'))) {
       event.preventDefault()
