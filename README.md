@@ -15,7 +15,7 @@ MD+HTML Reader is a macOS desktop app for people who write and review Markdown f
 - Add anchored review comments stored separately from the source document.
 - Search file names and workspace content.
 - Export Markdown as standalone HTML, with an optional embedded source view.
-- Generate a Chinese translation copy or AI reading version when you explicitly configure and approve an AI provider.
+- Generate a Chinese translation copy from the button beside **Rich text edit** in a Markdown document toolbar, or create an AI reading version when you explicitly configure and approve an AI provider.
 
 ## Try it in 30 seconds
 
@@ -24,6 +24,10 @@ MD+HTML Reader is a macOS desktop app for people who write and review Markdown f
 3. Open **Document tools** and export an HTML reading version.
 
 No AI setup is needed for this path.
+
+## Create a Chinese translation copy
+
+Open a Markdown document, select a translation service in **Document tools**, then choose the translation button beside **Rich text edit**. Any pending changes are saved before a separate Chinese copy is created; the source document is not overwritten.
 
 ## Run locally
 
@@ -40,7 +44,7 @@ pnpm exec tauri dev
 
 The app works locally by default. Opening, editing, commenting, searching, and HTML export operate on the folder you choose.
 
-AI tools are optional. Before creating an AI reading version or document-assistant request, the app asks for confirmation and sends only the current Markdown and, where needed, unresolved comments to the provider you choose. The API key is kept in memory for the current session and is not written to disk. See [PRIVACY.md](PRIVACY.md) for the full statement.
+AI tools are optional. Before creating an AI reading version or document-assistant request, the app asks for confirmation and sends only the current Markdown and, where needed, unresolved comments to the provider you choose. When you save OpenAI-compatible settings, the API key is stored in the current user's application configuration directory for reuse. See [PRIVACY.md](PRIVACY.md) for the storage and security details.
 
 ## Beta limitations
 
@@ -70,4 +74,4 @@ pnpm build
 
 ## License
 
-No license has been published yet. Do not redistribute the source or binaries without permission from the project owner.
+Released under the [MIT License](LICENSE).

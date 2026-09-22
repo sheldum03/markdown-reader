@@ -2,7 +2,7 @@
 
 [中文](PRIVACY.zh-CN.md) | English
 
-Last updated: 2026-07-16
+Last updated: 2026-09-22
 
 ## Local files
 
@@ -20,7 +20,7 @@ You are responsible for choosing a provider and ensuring you have permission to 
 
 ## API credentials
 
-For OpenAI-compatible services, the Base URL and selected model can be stored locally for convenience. API keys are kept only in memory for the current app session and are not written to disk by this app.
+For OpenAI-compatible services, the Base URL and selected model can be stored locally for convenience. When you save the settings, the API key is written to a `.env` file in the current user's application configuration directory so it can be reused in later sessions. On Unix systems, the app sets that file to owner-only permissions (`0600`). The key is not stored in the selected workspace or in the operating system keychain; any person or process with access to your user account and that configuration file may be able to read it.
 
 ## Data sharing and support
 
