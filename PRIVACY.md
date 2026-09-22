@@ -6,7 +6,7 @@ Last updated: 2026-09-22
 
 ## Local files
 
-MD+HTML Reader operates on the folder you explicitly select. Editing, comments, file search, content search, and HTML export run locally. The app does not require an account for these features.
+Markdown Reader operates on the folder you explicitly select. Editing, comments, file search, content search, and HTML export run locally. The app does not require an account for these features.
 
 Comments are stored as sidecar data associated with the document path. They are intended to stay with the workspace you selected.
 
