@@ -1,10 +1,10 @@
-# MD+HTML Reader
+# Markdown Reader
 
 [中文](README.zh-CN.md) | English
 
 > A local-first Markdown workspace for editing, reviewing, and exporting shareable HTML.
 
-MD+HTML Reader is a macOS desktop app for people who write and review Markdown files. Open a folder you control, edit documents in place, leave anchored comments, then export a standalone HTML reading version. Core editing, comments, search, and export work without an account or API key.
+Markdown Reader is a macOS desktop app for people who write and review Markdown files. Open a folder you control, edit documents in place, leave anchored comments, then export a standalone HTML reading version. Core editing, comments, search, and export work without an account or API key.
 
 ## What you can do
 

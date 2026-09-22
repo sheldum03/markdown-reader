@@ -1,10 +1,10 @@
-# MD+HTML Reader
+# Markdown Reader
 
 [English](README.md) | 中文
 
 > 一个本地优先的 Markdown 工作区，用于编辑、审阅并导出可分享的 HTML。
 
-MD+HTML Reader 是一款面向 macOS 的桌面应用，适合撰写和审阅 Markdown 文件。打开你拥有控制权的文件夹，直接编辑文档、留下锚定评论，再导出独立的 HTML 阅读版。核心编辑、评论、搜索和导出均无需账号或 API 密钥。
+Markdown Reader 是一款面向 macOS 的桌面应用，适合撰写和审阅 Markdown 文件。打开你拥有控制权的文件夹，直接编辑文档、留下锚定评论，再导出独立的 HTML 阅读版。核心编辑、评论、搜索和导出均无需账号或 API 密钥。
 
 ## 可以做什么
 
