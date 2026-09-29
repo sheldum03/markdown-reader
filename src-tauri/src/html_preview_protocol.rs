@@ -3,7 +3,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{
-    http::{header::CONTENT_TYPE, Response, StatusCode},
+    http::{
+        header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE},
+        Response, StatusCode,
+    },
     AppHandle, Manager, Runtime,
 };
 
@@ -53,6 +56,7 @@ pub fn handle<R: Runtime>(
     match fs::read(&file_path) {
         Ok(content) => Response::builder()
             .status(StatusCode::OK)
+            .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*")
             .header(CONTENT_TYPE, content_type(&file_path))
             .body(content)
             .unwrap(),
@@ -67,6 +71,17 @@ fn request_path(path: &str) -> Option<PathBuf> {
     #[cfg(not(windows))]
     let decoded = decoded.as_ref();
     let path = PathBuf::from(decoded);
+    #[cfg(windows)]
+    if matches!(
+        path.components().next(),
+        Some(std::path::Component::Prefix(prefix))
+            if matches!(
+                prefix.kind(),
+                std::path::Prefix::UNC(_, _) | std::path::Prefix::VerbatimUNC(_, _)
+            )
+    ) {
+        return None;
+    }
     path.is_absolute().then_some(path)
 }
 
@@ -94,6 +109,7 @@ fn content_type(path: &Path) -> &'static str {
 fn error_response(status: StatusCode, message: &str) -> Response<Vec<u8>> {
     Response::builder()
         .status(status)
+        .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*")
         .header(CONTENT_TYPE, "text/plain; charset=utf-8")
         .body(message.as_bytes().to_vec())
         .unwrap()
@@ -103,6 +119,7 @@ fn error_response(status: StatusCode, message: &str) -> Response<Vec<u8>> {
 mod tests {
     use super::*;
 
+    #[cfg(not(windows))]
     #[test]
     fn decodes_hierarchical_absolute_paths() {
         assert_eq!(
@@ -116,8 +133,9 @@ mod tests {
     #[test]
     fn decodes_windows_absolute_paths() {
         assert_eq!(
-            request_path("/C%3A/preview%20workspace/page.html"),
-            Some(PathBuf::from("C:/preview workspace/page.html"))
+            request_path("/C%3A/preview%20workspace/%E4%B8%AD%E6%96%87%20%26%5E%23.html"),
+            Some(PathBuf::from("C:/preview workspace/中文 &^#.html"))
         );
+        assert_eq!(request_path(r"/%5C%5Cserver%5Cshare%5Cpage.html"), None);
     }
 }

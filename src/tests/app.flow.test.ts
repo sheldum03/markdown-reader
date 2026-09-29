@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import App from '../App.vue'
+import { exportMarkdown } from '../lib/markdown/export'
+vi.mock('../lib/markdown/export', () => ({ exportMarkdown: vi.fn(async (source: string) => '<!doctype html><p>' + source + '</p>') }))
 import { invoke } from '@tauri-apps/api/core'
 import { ask, open, save } from '@tauri-apps/plugin-dialog'
 import { useWorkspaceStore } from '../stores/workspace'
@@ -12,6 +14,7 @@ const milkdownLifecycle = vi.hoisted(() => ({
   unmountCount: 0,
   switchRequests: 0,
   saveCurrentContentRequests: 0,
+  saveBarrier: null as Promise<void> | null,
   saveCurrentContentError: null as Error | null,
   replacementRequests: [] as string[],
   allowSwitch: true,
@@ -52,12 +55,13 @@ vi.mock('../components/FileTree.vue', () => ({
   },
 }))
 
-vi.mock('../components/MilkdownEditor.vue', () => ({
+vi.mock('../components/MarkdownDocument.vue', () => ({
   default: {
-    props: ['file', 'saveContent'],
-    emits: ['createComment', 'translate'],
+    props: ['file', 'saveContent', 'isMarkdownTranslating', 'translationDisabled'],
+    emits: ['startComment', 'translate', 'translateChineseCopy', 'headings', 'focus'],
     mounted() {
       milkdownLifecycle.mountCount++
+      ;(this as any).$emit('headings', [{ text: (this as any).file.path, line: 1, level: 1, id: 'heading-1' }])
     },
     unmounted() {
       milkdownLifecycle.unmountCount++
@@ -71,6 +75,7 @@ vi.mock('../components/MilkdownEditor.vue', () => ({
         },
         async saveCurrentContent() {
           milkdownLifecycle.saveCurrentContentRequests++
+          if (milkdownLifecycle.saveCurrentContentRequests === 2) await milkdownLifecycle.saveBarrier
           if (milkdownLifecycle.saveCurrentContentError) {
             throw milkdownLifecycle.saveCurrentContentError
           }
@@ -93,7 +98,7 @@ vi.mock('../components/MilkdownEditor.vue', () => ({
         </button>
         <button
           data-testid="add-comment"
-          @click="$emit('createComment', { quote: 'Edited keyword', offset: 12, length: 14 }, 'Review note')"
+          @click="$emit('startComment', { quote: 'Edited keyword', offset: 12, length: 14 }, 'Edited keyword')"
         >
           添加评论
         </button>
@@ -103,6 +108,14 @@ vi.mock('../components/MilkdownEditor.vue', () => ({
         >
           翻译选区
         </button>
+        <button
+          data-testid="translate-markdown-file"
+          :disabled="translationDisabled"
+          @click="$emit('translateChineseCopy')"
+        >
+          {{ isMarkdownTranslating ? 'Translating…' : 'Translate to Chinese copy' }}
+        </button>
+        <button data-testid="focus-document" @click="$emit('focus', true)">专注阅读</button>
       </div>
     `,
   },
@@ -121,10 +134,11 @@ vi.mock('../components/HtmlRenderer.vue', () => ({
 
 vi.mock('../components/CommentSidebar.vue', () => ({
   default: {
-    props: ['comments'],
-    emits: ['resolve', 'delete'],
+    props: ['comments', 'draft', 'submitting'],
+    emits: ['resolve', 'delete', 'submit', 'cancel'],
     template: `
       <div data-testid="comment-sidebar">
+        <button v-if="draft" data-testid="submit-comment" :disabled="submitting" @click="!submitting && $emit('submit', 'Review note')">提交评论</button>
         <div v-for="comment in comments" :key="comment.id">
           {{ comment.content }}|{{ comment.status }}
           <button data-testid="resolve-comment" @click="$emit('resolve', comment.id)">解决评论</button>
@@ -151,11 +165,11 @@ vi.mock('../components/SearchPanel.vue', () => ({
 
 vi.mock('../components/DocumentOutline.vue', () => ({
   default: {
-    props: ['content'],
+    props: ['content', 'headings'],
     emits: ['select'],
     template: `
       <div data-testid="document-outline">
-        <span>{{ content }}</span>
+        <span>{{ content }}</span><span data-testid="outline-headings">{{ headings }}</span>
         <button data-testid="outline-select" @click="$emit('select', { level: 2, text: 'Details', line: 3 })">
           Details
         </button>
@@ -201,6 +215,7 @@ describe('App core user flow', () => {
     milkdownLifecycle.unmountCount = 0
     milkdownLifecycle.switchRequests = 0
     milkdownLifecycle.saveCurrentContentRequests = 0
+    milkdownLifecycle.saveBarrier = null
     milkdownLifecycle.saveCurrentContentError = null
     milkdownLifecycle.replacementRequests = []
     milkdownLifecycle.allowSwitch = true
@@ -235,7 +250,7 @@ describe('App core user flow', () => {
         throw new Error(`Unexpected file: ${args.path}`)
       }
 
-      if (command === 'write_file') {
+      if (command === 'write_file_checked') {
         expect(args.workspacePath).toBe('/tmp/workspace')
         expect(args.path).toBe('/tmp/workspace/note.md')
         fileContent = args.content
@@ -257,13 +272,11 @@ describe('App core user flow', () => {
         return undefined
       }
 
-      if (command === 'export_as_html') {
+      if (command === 'export_rendered_html') {
         expect(args).toEqual({
           workspacePath: '/tmp/workspace',
-          filePath: '/tmp/workspace/note.md',
           outputPath: '/tmp/workspace/note.html',
-          cssContent: null,
-          includeMarkdownSource: false,
+          html: expect.stringContaining('Edited keyword'),
         })
         return undefined
       }
@@ -286,13 +299,15 @@ describe('App core user flow', () => {
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('Original keyword')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('Original keyword')
 
     await wrapper.get('[data-testid="save-edited"]').trigger('click')
     await flushPromises()
     expect(fileContent).toContain('Edited keyword')
 
     await wrapper.get('[data-testid="add-comment"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="submit-comment"]').trigger('click')
     await flushPromises()
     expect(savedComments).toHaveLength(1)
     expect(savedComments[0]).toEqual(expect.objectContaining({
@@ -308,7 +323,7 @@ describe('App core user flow', () => {
     await wrapper.findAll('button').find(button => button.text() === 'Search content')!.trigger('click')
     await wrapper.get('[data-testid="search-open"]').trigger('click')
     await flushPromises()
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('Edited keyword')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('Edited keyword')
 
     await wrapper.findAll('button').find(button => button.text() === 'Export HTML')!.trigger('click')
     await flushPromises()
@@ -319,7 +334,109 @@ describe('App core user flow', () => {
     expect(wrapper.text()).toContain('HTML reading version created and opened')
   })
 
-  it('切换不同文件时重建编辑器实例，避免 Milkdown 保留旧文档', async () => {
+  it('关闭当前标签后保留下一个标签的大纲', async () => {
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === 'read_file') return 'BBB'
+      if (command === 'load_comments') return []
+      return 'hash'
+    })
+    const pinia = createPinia(), workspace = useWorkspaceStore(pinia)
+    workspace.folderPath = '/tmp/workspace'
+    workspace.currentFile = { path: '/tmp/workspace/a.md', content: 'AAA' }
+    const wrapper = mount(App, { global: { plugins: [pinia] } })
+    await flushPromises()
+    await workspace.openFile('/tmp/workspace/b.md')
+    await flushPromises()
+    await wrapper.get('[aria-label="关闭 b.md"]').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'Show outline')!.trigger('click')
+    await flushPromises()
+    expect(workspace.currentFile?.path).toBe('/tmp/workspace/a.md')
+    expect(wrapper.get('[data-testid="outline-headings"]').text()).toContain('/tmp/workspace/a.md')
+    wrapper.unmount()
+  })
+
+  it('通过紧凑文件工具区新建并删除当前 Markdown 文件', async () => {
+    let created = false
+    vi.mocked(open).mockResolvedValue('/tmp/workspace')
+    vi.mocked(ask).mockResolvedValue(true)
+    vi.mocked(invoke).mockImplementation(async (command: string, args?: any) => {
+      if (command === 'list_files') {
+        return [
+          { name: 'note.md', path: '/tmp/workspace/note.md', type: 'file', extension: '.md' },
+          ...(created ? [{ name: 'Daily notes.md', path: '/tmp/workspace/Daily notes.md', type: 'file' as const, extension: '.md' }] : []),
+        ]
+      }
+      if (command === 'create_markdown_file') {
+        expect(args).toEqual({ workspacePath: '/tmp/workspace', name: 'Daily notes' })
+        created = true
+        return '/tmp/workspace/Daily notes.md'
+      }
+      if (command === 'delete_markdown_file') {
+        expect(args).toEqual({ workspacePath: '/tmp/workspace', path: '/tmp/workspace/Daily notes.md' })
+        created = false
+        return undefined
+      }
+      if (command === 'read_file') return args.path.endsWith('Daily notes.md') ? '' : '# Note'
+      if (command === 'load_comments') return []
+      if (command === 'calculate_file_hash') return 'hash'
+      throw new Error(`Unexpected command: ${command}`)
+    })
+
+    const pinia = createPinia()
+    const wrapper = mount(App, { global: { plugins: [pinia] } })
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[role="toolbar"]').findAll('.workspace-file-tool')).toHaveLength(8)
+    await wrapper.get('[aria-label="New Markdown file"]').trigger('click')
+    await wrapper.get('#new-markdown-file-name').setValue('Daily notes')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    const workspace = useWorkspaceStore(pinia)
+    expect(workspace.currentFile?.path).toBe('/tmp/workspace/Daily notes.md')
+    expect(workspace.files.map(file => file.name)).toContain('Daily notes.md')
+
+    await wrapper.get('[aria-label="Delete current Markdown file"]').trigger('click')
+    await flushPromises()
+
+    expect(ask).toHaveBeenCalledWith(
+      'Permanently delete “Daily notes.md”? This cannot be undone.',
+      { title: 'Delete current Markdown file', kind: 'warning' },
+    )
+    expect(workspace.currentFile).toBeNull()
+    expect(workspace.files.map(file => file.name)).not.toContain('Daily notes.md')
+    wrapper.unmount()
+  })
+
+  it('导出保存期间切换标签仍使用源文件内容与资源路径', async () => {
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === 'read_file') return 'BBB'
+      if (command === 'load_comments' || command === 'list_files') return []
+      return 'hash'
+    })
+    const pinia = createPinia(), workspace = useWorkspaceStore(pinia)
+    workspace.folderPath = '/tmp/workspace'
+    workspace.currentFile = { path: '/tmp/workspace/a.md', content: 'AAA' }
+    const wrapper = mount(App, { global: { plugins: [pinia] } })
+    await flushPromises()
+    let finishSave!: () => void
+    milkdownLifecycle.saveBarrier = new Promise<void>(resolve => { finishSave = resolve })
+    vi.mocked(save).mockResolvedValue('/tmp/workspace/a.html')
+    await wrapper.findAll('button').find(button => button.text() === 'Export HTML')!.trigger('click')
+    await flushPromises()
+    expect(milkdownLifecycle.saveCurrentContentRequests).toBe(2)
+    await workspace.openFile('/tmp/workspace/b.md')
+    await flushPromises()
+    finishSave()
+    await flushPromises()
+    expect(exportMarkdown).toHaveBeenCalledWith('AAA', '/tmp/workspace/a.md', '/tmp/workspace', false)
+    expect(invoke).toHaveBeenCalledWith('export_rendered_html', expect.objectContaining({ html: expect.stringContaining('AAA') }))
+    wrapper.unmount()
+  })
+
+  it('切换标签保留每个编辑器实例和草稿', async () => {
     vi.mocked(open).mockResolvedValue('/tmp/workspace')
     vi.mocked(invoke).mockImplementation(async (command: string, args?: any) => {
       if (command === 'list_files') {
@@ -368,19 +485,19 @@ describe('App core user flow', () => {
     const fileButtons = wrapper.findAll('[data-testid="file-item"]')
     await fileButtons[0].trigger('click')
     await flushPromises()
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# First')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# First')
 
     await fileButtons[1].trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# Second')
-    expect(milkdownLifecycle.switchRequests).toBe(1)
-    expect(milkdownLifecycle.actions).toEqual(['switch-file'])
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# Second')
+    expect(milkdownLifecycle.switchRequests).toBe(0)
+    expect(milkdownLifecycle.actions).toEqual([])
     expect(milkdownLifecycle.mountCount).toBe(2)
-    expect(milkdownLifecycle.unmountCount).toBe(1)
+    expect(milkdownLifecycle.unmountCount).toBe(0)
   })
 
-  it('编辑器拒绝切换时保留当前文件和未保存内容', async () => {
+  it('编辑器拒绝关闭时保留标签和未保存内容', async () => {
     vi.mocked(open).mockResolvedValue('/tmp/workspace')
     vi.mocked(invoke).mockImplementation(async (command: string, args?: any) => {
       if (command === 'list_files') {
@@ -404,12 +521,12 @@ describe('App core user flow', () => {
     await flushPromises()
     milkdownLifecycle.allowSwitch = false
 
-    await fileButtons[1].trigger('click')
+    await wrapper.get('[aria-label="关闭 first.md"]').trigger('click')
     await flushPromises()
 
     expect(milkdownLifecycle.switchRequests).toBe(1)
     expect(milkdownLifecycle.actions).toEqual(['switch-file'])
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# First')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# First')
     expect(milkdownLifecycle.mountCount).toBe(1)
     expect(invoke).not.toHaveBeenCalledWith('read_file', expect.objectContaining({
       path: '/tmp/workspace/second.md',
@@ -596,6 +713,7 @@ describe('App core user flow', () => {
     await flushPromises()
 
     await wrapper.findAll('button').find(button => button.text() === 'Show outline')!.trigger('click')
+    await flushPromises()
 
     expect(wrapper.get('[data-testid="document-outline"]').text()).toContain('# Intro')
     expect(wrapper.get('[data-testid="document-outline"]').text()).toContain('## Details')
@@ -662,7 +780,68 @@ describe('App core user flow', () => {
     expect(wrapper.get('[data-testid="translation-card"]').text()).toContain('ollama')
   })
 
-  it('将 OpenAI 兼容配置传给翻译命令且不持久化 API Key', async () => {
+  it('切换文档时丢弃过期译文', async () => {
+    let resolveTranslation!: (result: any) => void
+    const translation = new Promise(resolve => { resolveTranslation = resolve })
+    vi.mocked(open).mockResolvedValue('/tmp/workspace')
+    vi.mocked(invoke).mockImplementation(async (command: string, args?: any) => {
+      if (command === 'translate_text') return translation
+      if (command === 'list_files') {
+        return [
+          { name: 'first.md', path: '/tmp/workspace/first.md', type: 'file', extension: '.md' },
+          { name: 'second.md', path: '/tmp/workspace/second.md', type: 'file', extension: '.md' },
+        ]
+      }
+      if (command === 'read_file') return args.path.endsWith('second.md') ? '# Second' : '# First'
+      if (command === 'calculate_file_hash') return 'hash'
+      if (command === 'load_comments') return []
+      throw new Error(`Unexpected command: ${command}`)
+    })
+
+    const pinia = createPinia()
+    const workspace = useWorkspaceStore(pinia)
+    const wrapper = mount(App, { global: { plugins: [pinia] } })
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
+    await flushPromises()
+    await wrapper.findAll('[data-testid="file-item"]')[0].trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="translate-selection"]').trigger('click')
+
+    await workspace.openFile('/tmp/workspace/second.md')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="translation-card"]').exists()).toBe(false)
+
+    resolveTranslation({ original: 'Hello', translated: '你好', service: 'ollama' })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="translation-card"]').exists()).toBe(false)
+  })
+
+  it('专注模式中发起评论时自动显示评论侧栏', async () => {
+    vi.mocked(open).mockResolvedValue('/tmp/workspace')
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === 'list_files') return [{ name: 'note.md', path: '/tmp/workspace/note.md', type: 'file', extension: '.md' }]
+      if (command === 'read_file') return '# Note'
+      if (command === 'calculate_file_hash') return 'hash-note'
+      if (command === 'load_comments') return []
+      throw new Error(`Unexpected command: ${command}`)
+    })
+
+    const wrapper = mount(App, { global: { plugins: [createPinia()] } })
+    await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="file-item"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="focus-document"]').trigger('click')
+    await wrapper.get('[data-testid="add-comment"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="comment-sidebar"]').exists()).toBe(true)
+  })
+
+  it('将 OpenAI 兼容配置传给翻译命令且仅通过应用配置保存 API Key', async () => {
     vi.mocked(open).mockResolvedValue('/tmp/workspace')
     vi.mocked(invoke).mockImplementation(async (command: string, args?: any) => {
       if (command === 'list_files') {
@@ -712,14 +891,36 @@ describe('App core user flow', () => {
     expect(window.localStorage.getItem('md-html-reader.openai-compatible.apiKey')).toBeNull()
   })
 
+  it('启动后从应用配置恢复 OpenAI API Key', async () => {
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === 'load_openai_api_key') return 'saved-api-key'
+      throw new Error(`Unexpected command: ${command}`)
+    })
+
+    const pinia = createPinia()
+    useWorkspaceStore(pinia).folderPath = '/tmp/workspace'
+    const wrapper = mount(App, { global: { plugins: [pinia] } })
+    await flushPromises()
+    await wrapper.get('[aria-label="Configure OpenAI-compatible model"]').trigger('click')
+
+    expect((wrapper.get('input[placeholder="sk-..."]').element as HTMLInputElement).value).toBe('saved-api-key')
+  })
+
   it('保存、测试并拉取 OpenAI 兼容模型配置', async () => {
     vi.mocked(invoke).mockImplementation(async (command: string, args?: any) => {
+      if (command === 'load_openai_api_key') return null
+      if (command === 'save_openai_api_key') {
+        expect(args).toEqual({ apiKey: 'test-api-key' })
+        return undefined
+      }
       if (command === 'test_openai_compatible_connection') {
         expect(args).toEqual({
           baseUrl: 'https://api.deepseek.com/v1',
+          model: 'deepseek-chat',
           apiKey: 'test-api-key',
+          verifyChat: false,
         })
-        return { modelCount: 2 }
+        return { modelCount: 2, chatVerified: false }
       }
       if (command === 'fetch_openai_compatible_models') {
         expect(args).toEqual({
@@ -737,6 +938,7 @@ describe('App core user flow', () => {
     await wrapper.vm.$nextTick()
     await wrapper.get('[aria-label="Configure OpenAI-compatible model"]').trigger('click')
     await wrapper.get('input[placeholder="https://api.deepseek.com/v1"]').setValue('https://api.deepseek.com/v1')
+    await wrapper.get('input[placeholder="deepseek-chat"]').setValue('deepseek-chat')
     await wrapper.get('input[placeholder="sk-..."]').setValue('test-api-key')
 
     await wrapper.findAll('button').find(button => button.text() === 'Test connection')!.trigger('click')
@@ -908,14 +1110,11 @@ describe('App core user flow', () => {
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
 
-    await wrapper
-      .findAll('button')
-      .find(button => button.text() === 'Translate to Chinese copy')!
-      .trigger('click')
+    await wrapper.get('[data-active-document="true"] [data-testid="translate-markdown-file"]').trigger('click')
     await flushPromises()
 
     expect(milkdownLifecycle.saveCurrentContentRequests).toBe(1)
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# 你好')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# 你好')
     expect(wrapper.text()).toContain('Chinese translation copy created: note.zh.md')
   })
 
@@ -961,16 +1160,17 @@ describe('App core user flow', () => {
     await fileButtons[0].trigger('click')
     await flushPromises()
 
-    const translateButton = wrapper.findAll('button').find(button => button.text() === 'Translate to Chinese copy')!
+    const translateButton = wrapper.get('[data-active-document="true"] [data-testid="translate-markdown-file"]')
     await translateButton.trigger('click')
     await flushPromises()
 
+    expect((translateButton.element as HTMLButtonElement).disabled).toBe(true)
     expect((wrapper.findAll('button').find(button => button.text() === 'Open folder')!.element as HTMLButtonElement).disabled).toBe(true)
     await fileButtons[1].trigger('click')
     await wrapper.findAll('button').find(button => button.text() === 'Open folder')!.trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# Hello')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# Hello')
     expect(milkdownLifecycle.switchRequests).toBe(0)
     expect(open).toHaveBeenCalledTimes(1)
 
@@ -983,7 +1183,7 @@ describe('App core user flow', () => {
     await flushPromises()
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# 你好')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# 你好')
   })
 
   it('全文翻译失败时保留当前文件并显示错误', async () => {
@@ -1012,13 +1212,10 @@ describe('App core user flow', () => {
     await wrapper.get('[data-testid="file-item"]').trigger('click')
     await flushPromises()
 
-    await wrapper
-      .findAll('button')
-      .find(button => button.text() === 'Translate to Chinese copy')!
-      .trigger('click')
+    await wrapper.get('[data-active-document="true"] [data-testid="translate-markdown-file"]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="editor-content"]').text()).toContain('# Hello')
+    expect(wrapper.get('[data-active-document="true"] [data-testid="editor-content"]').text()).toContain('# Hello')
     expect(wrapper.text()).toContain('中文翻译副本已存在，未覆盖原有文件')
   })
 
@@ -1086,7 +1283,7 @@ describe('App core user flow', () => {
       if (command === 'calculate_file_hash') return 'hash-note'
       if (command === 'load_comments') return []
       if (command === 'optimize_document_with_comments') return { content: '# Optimized' }
-      if (command === 'write_file') throw new Error('write should not be called')
+      if (command === 'write_file_checked') throw new Error('write should not be called')
       throw new Error(`Unexpected command: ${command}`)
     })
 
@@ -1120,7 +1317,7 @@ describe('App core user flow', () => {
       if (command === 'calculate_file_hash') return 'hash-note'
       if (command === 'load_comments') return []
       if (command === 'optimize_document_with_comments') return { content: '# Optimized' }
-      if (command === 'write_file') {
+      if (command === 'write_file_checked') {
         expect(args).toEqual({
           workspacePath: '/tmp/workspace',
           path: '/tmp/workspace/note.md',
@@ -1172,7 +1369,7 @@ describe('App core user flow', () => {
       if (command === 'optimize_document_with_comments') {
         return { content: args.markdown === '# Other' ? '# Other optimized' : '# Original optimized' }
       }
-      if (command === 'write_file') return undefined
+      if (command === 'write_file_checked') return undefined
       throw new Error(`Unexpected command: ${command}`)
     })
 
@@ -1275,10 +1472,7 @@ describe('App core user flow', () => {
     expect(wrapper.find('[data-testid="editor"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="html-renderer"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="rendered-html"]').text()).toContain('Page')
-    expect(
-      wrapper.findAll('button').find(button => button.text() === 'Translate to Chinese copy')!
-        .attributes('disabled')
-    ).toBeDefined()
+    expect(wrapper.find('[data-testid="translate-markdown-file"]').exists()).toBe(false)
 
   })
 })

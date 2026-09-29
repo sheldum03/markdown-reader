@@ -1,0 +1,68 @@
+{
+  "shell": {
+    "bytes": 165745,
+    "gzipBytes": 57570
+  },
+  "reading": {
+    "bytes": 304136,
+    "gzipBytes": 113298
+  },
+  "sourceEditor": {
+    "bytes": 843446,
+    "gzipBytes": 306551
+  },
+  "mermaid": {
+    "bytes": 690967,
+    "gzipBytes": 175208
+  },
+  "largest": [
+    {
+      "file": "assets/diagram-layout-elk-CwgxceyV.js",
+      "bytes": 1438482
+    },
+    {
+      "file": "assets/mermaid-parser.core-DOyhMfUa.js",
+      "bytes": 689774
+    },
+    {
+      "file": "assets/diagram-layout-cytoscape-Ix0LnXOy.js",
+      "bytes": 443834
+    },
+    {
+      "file": "assets/export-fonts-IM-bLUL4.js",
+      "bytes": 347621
+    },
+    {
+      "file": "assets/MilkdownEditor-CYWr3HLV.js",
+      "bytes": 321565
+    },
+    {
+      "file": "assets/katex-DLorvT8M.js",
+      "bytes": 261719
+    },
+    {
+      "file": "assets/katex-C5jXJg4s.js",
+      "bytes": 261329
+    },
+    {
+      "file": "assets/richtext-prosemirror-BUo-i4Ha.js",
+      "bytes": 248783
+    },
+    {
+      "file": "assets/mermaid-chunk-O7XYJQB3-D0YTR-wf.js",
+      "bytes": 209243
+    },
+    {
+      "file": "assets/index-l7P7L4SQ.js",
+      "bytes": 164603
+    },
+    {
+      "file": "assets/-codemirror-view-C6zdXiAA.js",
+      "bytes": 164110
+    },
+    {
+      "file": "assets/parser-BB8c9q3e.js",
+      "bytes": 132173
+    }
+  ]
+}

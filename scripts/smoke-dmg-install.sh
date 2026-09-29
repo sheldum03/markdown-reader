@@ -64,7 +64,7 @@ ditto "$MOUNT_DIR/${PRODUCT_NAME}.app" "$INSTALL_DIR/${PRODUCT_NAME}.app"
 codesign --verify --deep --strict --verbose=2 "$INSTALL_DIR/${PRODUCT_NAME}.app"
 
 APP_BINARY="$INSTALL_DIR/${PRODUCT_NAME}.app/Contents/MacOS/md-html-reader"
-APP_LOG="$(mktemp "${TMPDIR:-/tmp}/markdown-html-dmg-app.XXXXXX.log")"
+APP_LOG="$(mktemp "${TMPDIR:-/tmp}/markdown-html-dmg-app.XXXXXX")"
 "$APP_BINARY" >"$APP_LOG" 2>&1 &
 APP_PID=$!
 

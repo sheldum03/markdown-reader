@@ -41,6 +41,30 @@ describe('HtmlRenderer', () => {
     })
   })
 
+  it('keeps the macOS bundle config and adds a current-user multilingual Windows NSIS override', () => {
+    const baseConfig = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8'))
+    const windowsConfig = JSON.parse(readFileSync('src-tauri/tauri.windows.conf.json', 'utf8'))
+
+    expect(baseConfig.productName).toBe('MD+HTML Reader')
+    expect(baseConfig.version).toBe('0.9.0')
+    expect(baseConfig.bundle.targets).toEqual(['app'])
+    expect(baseConfig.bundle.icon).toEqual(['icons/icon.icns'])
+    expect(windowsConfig.bundle).toEqual({
+      targets: ['nsis'],
+      icon: ['icons/icon.ico'],
+      windows: {
+        webviewInstallMode: { type: 'downloadBootstrapper', silent: true },
+        nsis: {
+          installerIcon: 'icons/icon.ico',
+          installMode: 'currentUser',
+          languages: ['English', 'SimpChinese'],
+          displayLanguageSelector: true,
+        },
+      },
+    })
+    expect(readFileSync('src-tauri/icons/icon.ico').length).toBeGreaterThan(10_000)
+  })
+
   it('仅主窗口拥有应用命令权限，完整预览窗口不匹配该能力', () => {
     const capability = JSON.parse(readFileSync('src-tauri/capabilities/main.json', 'utf8'))
 
@@ -50,7 +74,7 @@ describe('HtmlRenderer', () => {
     expect(capability.windows).not.toContain('html-preview-*')
   })
 
-  it('完整预览以原始 asset URL 打开独立窗口，不改写作者的 base', async () => {
+  it('默认显示安全静态预览，完整预览仍以原始 asset URL 打开独立窗口', async () => {
     const content = '<html><head><base href="https://example.com/app/"></head><body><h1>Rendered Page</h1></body></html>'
     const wrapper = mount(HtmlRenderer, {
       props: {
@@ -61,7 +85,9 @@ describe('HtmlRenderer', () => {
       },
     })
 
-    expect(wrapper.find('iframe').exists()).toBe(false)
+    const iframe = wrapper.get('iframe[title="Safe HTML static preview"]')
+    expect(iframe.attributes('sandbox')).toBe('')
+    expect(iframe.attributes('srcdoc')).toBe(content)
     await wrapper.get('button').trigger('click')
     await flushPromises()
 
@@ -76,15 +102,57 @@ describe('HtmlRenderer', () => {
     expect(wrapper.text()).not.toContain('Could not open full preview')
   })
 
-  it('安全静态预览保留原文但禁用脚本和同源权限', async () => {
+  it('encodes a Windows preview path with spaces, Chinese, and shell metacharacters', async () => {
+    const wrapper = mount(HtmlRenderer, {
+      props: {
+        file: {
+          path: 'C:\\Users\\Reviewer\\中文 workspace\\page &^#.html',
+          content: '<h1>Windows preview</h1>',
+        },
+      },
+    })
+
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(WebviewWindow).toHaveBeenCalledWith(
+      expect.stringMatching(/^html-preview-\d+-0$/),
+      expect.objectContaining({
+        url: 'preview://localhost/C%3A/Users/Reviewer/%E4%B8%AD%E6%96%87%20workspace/page%20%26%5E%23.html',
+        title: 'HTML preview: page &^#.html',
+      }),
+    )
+  })
+
+  it('removes the Windows verbatim path prefix before creating a preview URL', async () => {
+    const wrapper = mount(HtmlRenderer, {
+      props: {
+        file: {
+          path: '\\\\?\\C:\\Users\\Reviewer\\preview.html',
+          content: '<h1>Windows preview</h1>',
+        },
+      },
+    })
+
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(WebviewWindow).toHaveBeenCalledWith(
+      expect.stringMatching(/^html-preview-\d+-0$/),
+      expect.objectContaining({
+        url: 'preview://localhost/C%3A/Users/Reviewer/preview.html',
+        title: 'HTML preview: preview.html',
+      }),
+    )
+  })
+
+  it('安全静态预览保留原文但禁用脚本和同源权限', () => {
     const content = '<html><head><base href="https://example.com/app/"></head><body><script>window.ready = true</script><h1>Static Page</h1></body></html>'
     const wrapper = mount(HtmlRenderer, {
       props: {
         file: { path: '/tmp/workspace/page.htm', content },
       },
     })
-
-    await wrapper.get('button:nth-of-type(2)').trigger('click')
 
     const iframe = wrapper.get('iframe[title="Safe HTML static preview"]')
     expect(iframe.attributes('sandbox')).toBe('')
@@ -118,7 +186,6 @@ describe('HtmlRenderer', () => {
       },
     })
 
-    await wrapper.get('button:nth-of-type(2)').trigger('click')
     await wrapper.get('iframe').trigger('error')
 
     expect(wrapper.get('[role="alert"]').text()).toContain('Could not load the safe static preview')

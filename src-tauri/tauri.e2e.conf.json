@@ -1,9 +1,7 @@
 {
   "build": {
-    "beforeBuildCommand": "pnpm build --mode e2e"
-  },
-  "bundle": {
-    "targets": ["app"]
+    "beforeBuildCommand": "pnpm build --mode e2e --outDir dist-e2e",
+    "frontendDist": "../dist-e2e"
   },
   "app": {
     "withGlobalTauri": true,
@@ -17,16 +15,20 @@
         "main",
         {
           "identifier": "e2e",
-          "windows": ["main"],
+          "windows": [
+            "main"
+          ],
           "permissions": [
             "core:default",
             "core:window:default",
             "dialog:default",
             "wdio:default",
-            "wdio-webdriver:default"
+            "wdio-webdriver:default",
+            "allow-e2e-workspace-path"
           ]
         }
       ]
     }
-  }
+  },
+  "identifier": "com.markdown-html.reader.e2e"
 }

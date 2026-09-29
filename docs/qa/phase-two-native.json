@@ -1,0 +1,50 @@
+{
+  "characters": 10000619,
+  "utf8Bytes": 10492747,
+  "rssBefore": {
+    "measured": false,
+    "reason": "Record native RSS with the platform task manager during manual acceptance."
+  },
+  "openMs": 1204,
+  "firstRender": {
+    "blocks": 7,
+    "engineLoads": [],
+    "longestMainThreadGapMs": 1000,
+    "nodes": 62,
+    "resources": []
+  },
+  "rssReading": {
+    "measured": false,
+    "reason": "Record native RSS with the platform task manager during manual acceptance."
+  },
+  "scroll": {
+    "clientHeight": 573,
+    "height": 4060009,
+    "ms": 4,
+    "nodes": 101,
+    "scrollTop": 3248007,
+    "text": "中文 English bold with a local link, measured native disk input. 中文 English bold w"
+  },
+  "sourceEditorOpenMs": 95,
+  "sourceEditorNodes": 55,
+  "editMs": 7,
+  "rssEditing": {
+    "measured": false,
+    "reason": "Record native RSS with the platform task manager during manual acceptance."
+  },
+  "offlineExportBytes": 394232,
+  "offlinePreview": {
+    "external": [],
+    "formula": true,
+    "imageLoaded": true,
+    "svg": true
+  },
+  "splitSync": {
+    "repeatedHeadingOffsetPx": 24.171875,
+    "stablePositions": [
+      10217,
+      4926
+    ],
+    "reverseSync": true
+  }
+}

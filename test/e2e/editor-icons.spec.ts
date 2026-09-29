@@ -1,0 +1,104 @@
+import { existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+const workspace = process.env.E2E_WORKSPACE_PATH || join(tmpdir(), 'markdown-html-e2e-workspace 中文 &^#')
+const source = '---\nname: ui-design-assistant\ndescription: UI 界面设计师\n---\n\n# UI 界面设计师 — 灵魂\n\n你好！我是 **UI 界面设计师数字人**。\n\n## 能力\n\n- 保留 Markdown 源代码\n- 支持阅读、编辑与分屏\n\n```ts\nconst message = "Hello, world"\n```\n'
+
+describe('Source editing and icon controls', () => {
+  before(async () => {
+    rmSync(workspace, { recursive: true, force: true })
+    mkdirSync(workspace, { recursive: true })
+    writeFileSync(join(workspace, 'SOUL.md'), source)
+    await browser.execute(() => localStorage.setItem('md-html-reader.locale', 'zh-CN'))
+    await browser.refresh()
+  })
+  it('shows raw Markdown with named IconPark controls and preview on the left in split mode', async () => {
+    await $('//button[normalize-space(.)="打开文件夹"]').click()
+    const file = $('[data-file-name="SOUL.md"]')
+    await file.waitForExist()
+    await file.click()
+    await $('[aria-label="编辑"]').click()
+    await $('.cm-editor').waitForExist()
+    const state = await browser.execute(() => ({
+      source: document.querySelector('.cm-content')?.textContent,
+      tabs: document.querySelectorAll('[role="tab"]').length,
+      previewVisible: Array.from(document.querySelectorAll<HTMLElement>('.markdown-preview, .ProseMirror')).some(element => element.getBoundingClientRect().width > 0),
+      actions: Array.from(document.querySelectorAll<HTMLButtonElement>('button.icon-button')).map(button => ({ icon: !!button.querySelector('svg'), label: button.getAttribute('aria-label'), title: button.title })),
+    }))
+    expect(state.source).toContain('# UI 界面设计师 — 灵魂')
+    expect(state.source).toContain('**UI 界面设计师数字人**')
+    expect(state.tabs).toBe(1)
+    expect(state.previewVisible).toBe(false)
+    expect(state.actions.length).toBeGreaterThan(10)
+    expect(state.actions.every(button => button.icon && button.label && button.title)).toBe(true)
+    await $('[aria-label="编辑"]').moveTo()
+    await expect($('[aria-label="编辑"]')).toHaveAttribute('title', '编辑')
+    await $('[aria-label="分屏"]').click()
+    await $('.markdown-preview').waitForExist()
+    expect(await $('.cm-editor').isDisplayed()).toBe(true)
+    const previewOnLeft = await browser.execute(() => {
+      const preview = document.querySelector('.markdown-preview')!.getBoundingClientRect()
+      const editor = document.querySelector('.source-editor')!.getBoundingClientRect()
+      return preview.width > 0 && editor.width > 0 && preview.right <= editor.left
+    })
+    expect(previewOnLeft).toBe(true)
+    await $('.source-editor summary').click()
+    const settingsFit = await browser.execute(() => {
+      const editor = document.querySelector('.source-editor')!.getBoundingClientRect()
+      const panel = document.querySelector('.source-editor details > div')!.getBoundingClientRect()
+      return panel.left >= editor.left && panel.right <= editor.right && panel.width > 0
+    })
+    expect(settingsFit).toBe(true)
+  })
+
+  it('uses a compact file-tool grid and safely creates then deletes a Markdown file', async () => {
+    const toolLayout = await browser.execute(() => {
+      const toolbar = document.querySelector('[role="toolbar"][aria-label="文件工具"]')!
+      const buttons = Array.from(toolbar.querySelectorAll('button'))
+      const positions = buttons.map(button => {
+        const rect = button.getBoundingClientRect()
+        return { left: Math.round(rect.left), top: Math.round(rect.top) }
+      })
+      return {
+        count: buttons.length,
+        columns: new Set(positions.map(position => position.left)).size,
+        rows: new Set(positions.map(position => position.top)).size,
+      }
+    })
+    expect(toolLayout).toEqual({ count: 8, columns: 4, rows: 2 })
+
+    await $('[aria-label="新建 Markdown 文件"]').click()
+    const nameInput = $('#new-markdown-file-name')
+    await nameInput.waitForExist()
+    await nameInput.setValue('桌面端新建')
+    await $('//button[normalize-space(.)="新建文件"]').click()
+    await browser.waitUntil(
+      async () => existsSync(join(workspace, '桌面端新建.md')),
+      { timeoutMsg: 'Expected the new Markdown file to be created on disk' },
+    )
+    const createdFile = $('[data-file-name="桌面端新建.md"]')
+    await browser.waitUntil(
+      async () => (await createdFile.getAttribute('class'))?.includes('bg-blue-100') || false,
+      { timeoutMsg: 'Expected the new Markdown file to become the current document' },
+    )
+
+    await browser.execute(() => {
+      ;(window as any).__deleteConfirmMessage = ''
+      window.confirm = message => {
+        ;(window as any).__deleteConfirmMessage = String(message)
+        return true
+      }
+    })
+    await $('[aria-label="删除当前 Markdown 文件"]').click()
+    await browser.waitUntil(
+      async () => !existsSync(join(workspace, '桌面端新建.md')),
+      { timeoutMsg: 'Expected the Markdown file to be deleted from disk' },
+    )
+    expect(await browser.execute(() => (window as any).__deleteConfirmMessage)).toContain('无法撤销')
+    await browser.waitUntil(
+      async () => (await $('[data-active-document="true"]').getText()).includes('UI 界面设计师'),
+      { timeoutMsg: 'Expected the previous Markdown tab to become active after deletion' },
+    )
+  })
+})

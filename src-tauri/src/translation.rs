@@ -69,6 +69,7 @@ pub struct OpenAiCompatibleConfig {
 #[serde(rename_all = "camelCase")]
 pub struct OpenAiCompatibleConnectionResult {
     pub model_count: usize,
+    pub chat_verified: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -159,11 +160,23 @@ pub fn translate_text(
 #[command]
 pub fn test_openai_compatible_connection(
     base_url: String,
+    model: String,
     api_key: String,
+    verify_chat: bool,
 ) -> Result<OpenAiCompatibleConnectionResult, String> {
     let models = request_openai_compatible_models(&base_url, &api_key)?;
+    if verify_chat {
+        let config = OpenAiCompatibleConfig {
+            base_url,
+            model,
+            api_key,
+        };
+        validate_openai_compatible_config(Some(&config))?;
+        request_openai_compatible_completion(Some(&config), "Reply only with OK.", "ping", 8)?;
+    }
     Ok(OpenAiCompatibleConnectionResult {
         model_count: models.len(),
+        chat_verified: verify_chat,
     })
 }
 
@@ -1635,10 +1648,13 @@ mod tests {
 
         let result = test_openai_compatible_connection(
             format!("http://{}/v1", address),
+            "deepseek-chat".to_string(),
             "test-api-key".to_string(),
+            false,
         )
         .unwrap();
         assert_eq!(result.model_count, 2);
+        assert!(!result.chat_verified);
         server.join().unwrap();
     }
 

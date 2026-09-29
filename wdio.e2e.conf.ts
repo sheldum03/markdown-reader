@@ -1,7 +1,8 @@
 import { resolve } from 'node:path'
 
 const embeddedPort = Number(process.env.TAURI_WEBDRIVER_PORT || 4445)
-const appBinaryPath = resolve('src-tauri/target/debug/md-html-reader')
+const appBinaryName = process.platform === 'win32' ? 'md-html-reader.exe' : 'md-html-reader'
+const appBinaryPath = resolve('src-tauri', 'target', 'debug', appBinaryName)
 
 export const config: WebdriverIO.Config = {
   runner: 'local',

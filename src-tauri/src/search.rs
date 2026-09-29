@@ -1,6 +1,7 @@
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use pulldown_cmark::{html, Event, Options, Parser};
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
 use std::fs;
 use std::path::Path;
 use tauri::command;
@@ -8,9 +9,10 @@ use walkdir::WalkDir;
 
 use crate::fs_handler::read_document_content;
 use crate::path_guard::{
-    document_file_in_workspace, ensure_within_workspace, is_ignored_name,
-    is_supported_document_path, output_file_in_workspace, workspace_root,
+    ensure_within_workspace, is_ignored_name, is_supported_document_path, workspace_root,
 };
+#[cfg(test)]
+use crate::path_guard::{document_file_in_workspace, output_file_in_workspace};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FileSearchResult {
@@ -175,7 +177,7 @@ fn find_utf16_match_range(line: &str, query_lower: &str) -> Option<(usize, usize
 }
 
 /// 导出 Markdown 为 HTML
-#[command]
+#[cfg(test)]
 pub fn export_as_html(
     workspace_path: String,
     file_path: String,
