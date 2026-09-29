@@ -108,7 +108,7 @@ describe('MD+HTML Reader Tauri window', () => {
     writeFileSync(secondNotePath, '# Second Note\n\nSecond file content.\n')
     writeFileSync(
       previewPath,
-      '<!doctype html><html><head><base href="./assets/"><link rel="stylesheet" href="preview.css"></head><body><main id="preview-status">Waiting</main><img id="preview-image" src="preview.svg" alt="preview asset"><script type="module" src="preview.js"></script></body></html>'
+      '<!doctype html><html><head><title>HTML preview: preview.html</title><base href="./assets/"><link rel="stylesheet" href="preview.css"></head><body><main id="preview-status">Waiting</main><img id="preview-image" src="preview.svg" alt="preview asset"><script type="module" src="preview.js"></script></body></html>'
     )
     mkdirSync(previewAssetsPath, { recursive: true })
     writeFileSync(join(previewAssetsPath, 'preview.css'), '#preview-status { color: rgb(12, 34, 56); }')
