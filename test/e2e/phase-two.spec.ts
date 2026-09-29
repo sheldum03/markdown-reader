@@ -78,7 +78,7 @@ describe('Phase two native acceptance', () => {
     const main = await browser.getWindowHandle(); await button('Open full preview').click()
     await browser.waitUntil(async () => (await browser.getWindowHandles()).length > 1)
     const preview = (await browser.getWindowHandles()).find(handle => handle !== main)!
-    if (process.platform === 'win32') await browser.tauri.switchWindow(preview); else await browser.switchToWindow(preview)
+    await browser.switchToWindow(preview)
     const offline = await browser.execute(async () => { await document.fonts.ready; return { svg: !!document.querySelector('.mermaid-diagram svg'), formula: !!document.querySelector('.katex'), imageLoaded: Array.from(document.images).every(img => img.complete && img.naturalWidth > 0), external: performance.getEntriesByType('resource').filter(e => /^https?:/.test(e.name) && !e.name.includes('localhost')).map(e => e.name) } })
     report.offlinePreview = offline; expect(offline.imageLoaded).toBe(true); expect(offline.external).toEqual([])
     await browser.switchToWindow(preview); await browser.closeWindow(); await browser.waitUntil(async () => { const handles = await browser.getWindowHandles(); return handles.includes(main) && !handles.includes(preview) }); await browser.switchToWindow(main)
