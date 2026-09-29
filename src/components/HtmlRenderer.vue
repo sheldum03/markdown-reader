@@ -94,6 +94,7 @@ function toPreviewUrl(filePath: string) {
   const fileUrl = convertFileSrc(filePath, 'preview')
   const decodedPath = decodeURIComponent(new URL(fileUrl).pathname)
     .replaceAll('\\', '/')
+    .replace(/^\/+\?\/(?=[A-Za-z]:\/)/, '/')
     .replace(/^\/+/, '/')
   return `preview://localhost${decodedPath.split('/').map(encodeURIComponent).join('/')}`
 }

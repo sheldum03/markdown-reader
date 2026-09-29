@@ -124,6 +124,28 @@ describe('HtmlRenderer', () => {
     )
   })
 
+  it('removes the Windows verbatim path prefix before creating a preview URL', async () => {
+    const wrapper = mount(HtmlRenderer, {
+      props: {
+        file: {
+          path: '\\\\?\\C:\\Users\\Reviewer\\preview.html',
+          content: '<h1>Windows preview</h1>',
+        },
+      },
+    })
+
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(WebviewWindow).toHaveBeenCalledWith(
+      expect.stringMatching(/^html-preview-\d+-0$/),
+      expect.objectContaining({
+        url: 'preview://localhost/C%3A/Users/Reviewer/preview.html',
+        title: 'HTML preview: preview.html',
+      }),
+    )
+  })
+
   it('安全静态预览保留原文但禁用脚本和同源权限', () => {
     const content = '<html><head><base href="https://example.com/app/"></head><body><script>window.ready = true</script><h1>Static Page</h1></body></html>'
     const wrapper = mount(HtmlRenderer, {
