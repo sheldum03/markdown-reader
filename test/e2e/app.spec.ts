@@ -404,6 +404,10 @@ describe('MD+HTML Reader Tauri window', () => {
     expect(readFileSync(notePath, 'utf8')).toContain('Original keyword')
 
     await buttonWithText('Open folder').click()
+    await browser.waitUntil(
+      async () => (await browser.execute(() => (window as any).__confirmMessages.length)) === 2,
+      { timeoutMsg: 'Expected the unsaved-workspace confirmation to be recorded' },
+    )
     const workspaceCancelMessages = await browser.execute(() => (window as any).__confirmMessages)
     expect(workspaceCancelMessages).toHaveLength(2)
     expect(workspaceCancelMessages[1]).toContain('Switching workspaces will discard them')
