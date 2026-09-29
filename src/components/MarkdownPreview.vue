@@ -54,7 +54,7 @@ async function display(result: RenderedMarkdown, id: number) {
     const src = img.getAttribute('src') || ''
     if (src && !/^(?:[a-z][a-z\d+.-]*:|\/\/|#)/i.test(src)) {
       const base = new URL('file:///')
-      base.pathname = props.filePath.split('/').map(encodeURIComponent).join('/')
+      base.pathname = props.filePath
       const url = new URL(src, base)
       img.src = convertFileSrc(decodeURIComponent(url.pathname))
     }

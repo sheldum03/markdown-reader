@@ -1,15 +1,13 @@
 import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-const workspace = '/tmp/markdown-html-e2e-workspace'
+const workspace = process.env.E2E_WORKSPACE_PATH || join(tmpdir(), 'markdown-html-e2e-workspace 中文 &^#')
 const active = '[data-active-document="true"]'
 const button = (text: string) => $(`//button[normalize-space(.)="${text}"]`)
 const file = (name: string) => $(`//button[contains(normalize-space(.),"${name}")]`)
 const report: Record<string, unknown> = {}
 function rss() {
-  // Native process RSS is reported separately from WebKit's multiprocess memory.
-  const output = execFileSync('ps', ['-axo', 'pid,ppid,rss,command'], { encoding: 'utf8' })
-  return output.split('\n').filter(line => /md-html-reader|WebKit.WebContent/.test(line) && !/node|wdio|sh -c/.test(line))
+  return { measured: false, reason: 'Record native RSS with the platform task manager during manual acceptance.' }
 }
 async function openFolder() { await button('Open folder').click(); await file('large.md').waitForExist() }
 async function bodyHas(text: string) { await browser.waitUntil(async () => (await $('body').getText()).includes(text), { timeout: 60000 }) }

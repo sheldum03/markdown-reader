@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import MarkdownDocument from '../components/MarkdownDocument.vue'
+import { joinFilePath } from '../utils/path'
 
 const harness = vi.hoisted(() => ({ mounted: vi.fn(), save: vi.fn(), replace: vi.fn() }))
 vi.mock('../components/SourceEditor.vue', () => ({ default: {
@@ -11,13 +12,22 @@ vi.mock('../components/SourceEditor.vue', () => ({ default: {
 } }))
 vi.mock('../components/MarkdownPreview.vue', () => ({ default: { props: ['content'], template: '<div data-preview>{{ content }}</div>' } }))
 afterEach(() => { vi.clearAllMocks() })
-function setup() {
+function setup(path = '/a.md') {
   const saveContent = vi.fn().mockResolvedValue(undefined)
-  const wrapper = mount(MarkdownDocument, { props: { file: { path: '/a.md', content: '# Original' }, saveContent } })
+  const wrapper = mount(MarkdownDocument, { props: { file: { path, content: '# Original' }, saveContent } })
   const click = async (label: string) => { await wrapper.findAll('button').find(b => b.text() === label)!.trigger('click'); await flushPromises() }
   return { wrapper, click, saveContent }
 }
 describe('Markdown document modes', () => {
+  it('displays a Windows file name without its drive or parent directories', () => {
+    const { wrapper } = setup('C:\\Users\\Reviewer\\中文 workspace\\note.md')
+
+    expect(wrapper.get('.document-toolbar > span').text()).toBe('note.md')
+    expect(joinFilePath('C:\\Users\\Reviewer\\中文 workspace', 'note.html'))
+      .toBe('C:\\Users\\Reviewer\\中文 workspace\\note.html')
+    wrapper.unmount()
+  })
+
   it('opens in reading mode without mounting the editor and supports AI write-back', async () => {
     const { wrapper, saveContent } = setup()
     await flushPromises()

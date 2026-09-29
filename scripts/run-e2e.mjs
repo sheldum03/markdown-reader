@@ -1,86 +1,64 @@
 #!/usr/bin/env node
 
-import { execFileSync, spawn } from 'node:child_process'
-import { resolve } from 'node:path'
+import { spawn } from 'node:child_process'
+import { createServer } from 'node:net'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 
 const spec = process.argv[2]
-const port = Number(process.env.TAURI_WEBDRIVER_PORT || 4445)
-const appBinary = resolve('src-tauri/target/debug/md-html-reader')
+const reopenPhase = process.argv[3]
+const appBinaryName = process.platform === 'win32' ? 'md-html-reader.exe' : 'md-html-reader'
+const appBinary = resolve('src-tauri', 'target', 'debug', appBinaryName)
+const workspacePath = process.env.E2E_WORKSPACE_PATH || join(tmpdir(), 'markdown-html-e2e-workspace 中文 &^#')
 
 if (!spec) {
-  console.error('Usage: node scripts/run-e2e.mjs <spec>')
+  console.error('Usage: node scripts/run-e2e.mjs <spec> [create|verify]')
   process.exit(2)
 }
 
+if (reopenPhase && !['create', 'verify'].includes(reopenPhase)) {
+  console.error(`Invalid reopen phase: ${reopenPhase}`)
+  process.exit(2)
+}
+
+function availablePort() {
+  return new Promise((resolvePort, reject) => {
+    const server = createServer()
+    server.unref()
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+      if (!address || typeof address === 'string') {
+        server.close(() => reject(new Error('Could not allocate an E2E port')))
+        return
+      }
+      server.close(error => error ? reject(error) : resolvePort(address.port))
+    })
+  })
+}
+
+const requestedPort = process.env.TAURI_WEBDRIVER_PORT
+const port = requestedPort ? Number(requestedPort) : await availablePort()
 if (!Number.isInteger(port) || port < 1 || port > 65535) {
-  console.error(`Invalid TAURI_WEBDRIVER_PORT: ${process.env.TAURI_WEBDRIVER_PORT}`)
+  console.error(`Invalid TAURI_WEBDRIVER_PORT: ${requestedPort}`)
   process.exit(2)
-}
-
-function listenerPids() {
-  try {
-    const output = execFileSync(
-      'lsof',
-      ['-nP', '-t', `-iTCP:${port}`, '-sTCP:LISTEN'],
-      { encoding: 'utf8' }
-    )
-    return output.trim().split(/\s+/).filter(Boolean).map(Number)
-  } catch (error) {
-    if (error.status === 1) return []
-    throw error
-  }
-}
-
-function processCommand(pid) {
-  try {
-    return execFileSync('ps', ['-p', String(pid), '-o', 'command='], { encoding: 'utf8' }).trim()
-  } catch (error) {
-    if (error.status === 1) return ''
-    throw error
-  }
-}
-
-function isRunning(pid) {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch {
-    return false
-  }
-}
-
-const delay = (milliseconds) => new Promise(resolveDelay => setTimeout(resolveDelay, milliseconds))
-
-async function cleanWebDriverPort() {
-  for (const pid of listenerPids()) {
-    const command = processCommand(pid)
-    if (!command) continue
-    const executable = command.split(/\s+/, 1)[0]
-    if (executable !== appBinary) {
-      throw new Error(`Port ${port} is occupied by another process: ${command}`)
-    }
-
-    console.log(`[e2e] stopping stale app process ${pid} on port ${port}`)
-    process.kill(pid, 'SIGTERM')
-    for (let attempt = 0; attempt < 20 && isRunning(pid); attempt++) {
-      await delay(100)
-    }
-    if (isRunning(pid)) process.kill(pid, 'SIGKILL')
-  }
 }
 
 function runWdio() {
   return new Promise(resolveRun => {
+    const wdio = resolve('node_modules', '@wdio', 'cli', 'bin', 'wdio.js')
     const child = spawn(
-      'pnpm',
-      ['exec', 'wdio', 'run', 'wdio.e2e.conf.ts', '--spec', spec],
+      process.execPath,
+      [wdio, 'run', 'wdio.e2e.conf.ts', '--spec', spec],
       {
         env: {
           ...process.env,
+          E2E_WORKSPACE_PATH: workspacePath,
           TAURI_WEBDRIVER_PORT: String(port),
+          ...(reopenPhase ? { E2E_REOPEN_PHASE: reopenPhase } : {}),
         },
         stdio: 'inherit',
-      }
+      },
     )
 
     child.once('error', error => {
@@ -91,13 +69,5 @@ function runWdio() {
   })
 }
 
-await cleanWebDriverPort()
-console.log(`[e2e] running ${spec}, port ${port}`)
-let exitCode = 1
-try {
-  exitCode = await runWdio()
-} finally {
-  await cleanWebDriverPort()
-}
-
-process.exit(exitCode)
+console.log(`[e2e] running ${spec}, binary ${appBinary}, port ${port}`)
+process.exit(await runWdio())

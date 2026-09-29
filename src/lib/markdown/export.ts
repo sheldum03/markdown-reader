@@ -4,6 +4,7 @@ import { enhanceMarkdown } from './enhance'
 import template from './export-shell.html?raw'
 import sourceScript from './export-source.js.txt?raw'
 import css from '../../styles/markdown.css?inline'
+import { fileNameFromPath } from '../../utils/path'
 
 export async function exportMarkdown(source: string, filePath: string, workspacePath: string, includeSource: boolean): Promise<string> {
   const root = document.createElement('article'); root.className = 'markdown-body'
@@ -34,7 +35,7 @@ export async function exportMarkdown(source: string, filePath: string, workspace
     root.querySelectorAll('[data-copy-code]').forEach(node => node.remove())
     root.removeAttribute('style')
     const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-    const title = filePath.split('/').pop() || 'Document'
+    const title = fileNameFromPath(filePath) || 'Document'
     const replacements: Record<string, string> = {
       TITLE: escape(title), CSS: styles.replace(/<\/style/gi, '<\\/style'),
       ATTRIBUTES: includeSource ? ` data-markdown-source="${encodeURIComponent(source)}"` : '',

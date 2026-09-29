@@ -3,6 +3,7 @@ name = "md-html-reader"
 version = "0.9.0"
 description = "A Markdown reader with preview, editing, and commenting"
 authors = ["peixu7"]
+license = "MIT"
 edition = "2021"
 
 [build-dependencies]

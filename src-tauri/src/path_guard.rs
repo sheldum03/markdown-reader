@@ -4,6 +4,7 @@ use std::path::{Component, Path, PathBuf};
 const SUPPORTED_DOCUMENT_EXTENSIONS: [&str; 5] = ["md", "html", "htm", "xhtml", "yaml"];
 
 pub fn workspace_root(workspace_path: &str) -> Result<PathBuf, String> {
+    ensure_supported_local_path(Path::new(workspace_path))?;
     let root = fs::canonicalize(workspace_path).map_err(|e| format!("工作区路径无效: {}", e))?;
 
     if !root.is_dir() {
@@ -11,6 +12,26 @@ pub fn workspace_root(workspace_path: &str) -> Result<PathBuf, String> {
     }
 
     Ok(root)
+}
+
+#[cfg(windows)]
+fn ensure_supported_local_path(path: &Path) -> Result<(), String> {
+    use std::path::{Component, Prefix};
+
+    if matches!(
+        path.components().next(),
+        Some(Component::Prefix(prefix))
+            if matches!(prefix.kind(), Prefix::UNC(_, _) | Prefix::VerbatimUNC(_, _))
+    ) {
+        Err("暂不支持 UNC 网络路径".to_string())
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(not(windows))]
+fn ensure_supported_local_path(_path: &Path) -> Result<(), String> {
+    Ok(())
 }
 
 pub fn document_file_in_workspace(
@@ -163,6 +184,19 @@ mod tests {
         );
         assert!(
             document_file_in_workspace(&workspace, &(workspace.clone() + "/config.yaml")).is_ok()
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn rejects_unc_workspace_paths_before_filesystem_access() {
+        assert_eq!(
+            workspace_root(r"\\server\share\workspace").unwrap_err(),
+            "暂不支持 UNC 网络路径"
+        );
+        assert_eq!(
+            workspace_root(r"\\?\UNC\server\share\workspace").unwrap_err(),
+            "暂不支持 UNC 网络路径"
         );
     }
 }

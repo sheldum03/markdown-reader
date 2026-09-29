@@ -7,7 +7,7 @@
         @click="save"
         class="ml-auto px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
       >
-        保存 (Cmd+S)
+        {{ t('save') }}
       </button>
     </div>
 
@@ -25,6 +25,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { t } from '../i18n'
 
 const props = defineProps<{
   file: { path: string; content: string }

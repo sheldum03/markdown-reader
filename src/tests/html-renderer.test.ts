@@ -41,6 +41,30 @@ describe('HtmlRenderer', () => {
     })
   })
 
+  it('keeps the macOS bundle config and adds a current-user multilingual Windows NSIS override', () => {
+    const baseConfig = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8'))
+    const windowsConfig = JSON.parse(readFileSync('src-tauri/tauri.windows.conf.json', 'utf8'))
+
+    expect(baseConfig.productName).toBe('MD+HTML Reader')
+    expect(baseConfig.version).toBe('0.9.0')
+    expect(baseConfig.bundle.targets).toEqual(['app'])
+    expect(baseConfig.bundle.icon).toEqual(['icons/icon.icns'])
+    expect(windowsConfig.bundle).toEqual({
+      targets: ['nsis'],
+      icon: ['icons/icon.ico'],
+      windows: {
+        webviewInstallMode: { type: 'downloadBootstrapper', silent: true },
+        nsis: {
+          installerIcon: 'icons/icon.ico',
+          installMode: 'currentUser',
+          languages: ['English', 'SimpChinese'],
+          displayLanguageSelector: true,
+        },
+      },
+    })
+    expect(readFileSync('src-tauri/icons/icon.ico').length).toBeGreaterThan(10_000)
+  })
+
   it('仅主窗口拥有应用命令权限，完整预览窗口不匹配该能力', () => {
     const capability = JSON.parse(readFileSync('src-tauri/capabilities/main.json', 'utf8'))
 
@@ -76,6 +100,28 @@ describe('HtmlRenderer', () => {
       })
     )
     expect(wrapper.text()).not.toContain('Could not open full preview')
+  })
+
+  it('encodes a Windows preview path with spaces, Chinese, and shell metacharacters', async () => {
+    const wrapper = mount(HtmlRenderer, {
+      props: {
+        file: {
+          path: 'C:\\Users\\Reviewer\\中文 workspace\\page &^#.html',
+          content: '<h1>Windows preview</h1>',
+        },
+      },
+    })
+
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(WebviewWindow).toHaveBeenCalledWith(
+      expect.stringMatching(/^html-preview-\d+-0$/),
+      expect.objectContaining({
+        url: 'preview://localhost/C%3A/Users/Reviewer/%E4%B8%AD%E6%96%87%20workspace/page%20%26%5E%23.html',
+        title: 'HTML preview: page &^#.html',
+      }),
+    )
   })
 
   it('安全静态预览保留原文但禁用脚本和同源权限', () => {

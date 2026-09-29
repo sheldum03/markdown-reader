@@ -12,6 +12,20 @@ mod path_guard;
 mod search;
 mod translation;
 
+#[tauri::command]
+fn e2e_workspace_path() -> Result<String, String> {
+    #[cfg(feature = "e2e")]
+    {
+        let path = std::env::var_os("E2E_WORKSPACE_PATH")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::env::temp_dir().join("markdown-html-e2e-workspace 中文 &^#"));
+        return Ok(path.to_string_lossy().into_owned());
+    }
+
+    #[cfg(not(feature = "e2e"))]
+    Err("E2E workspace discovery is unavailable in production builds".to_string())
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|arg| arg == "--mcp") {
@@ -62,6 +76,7 @@ fn main() {
             translation::suggest_document_improvements,
             translation::optimize_document_with_comments,
             browser_preview::open_html_in_default_browser,
+            e2e_workspace_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -153,6 +168,68 @@ mod e2e_tests {
         search::export_as_html(root.clone(), file_path, output_path.clone(), None, false).unwrap();
         let exported = fs::read_to_string(output_path).unwrap();
         assert!(exported.contains("Edited keyword"));
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn windows_style_special_paths_and_crlf_survive_core_operations() {
+        let root = unique_test_root().join("Windows path &^# 中文 with spaces");
+        fs::create_dir_all(&root).unwrap();
+        let file_path = root.join("笔记 &^#.md");
+        let original = "# Windows\r\n\r\nCRLF 内容 & ^ #\r\n";
+        fs::write(&file_path, original).unwrap();
+
+        assert!(root.is_absolute());
+        #[cfg(windows)]
+        {
+            use std::path::Component;
+            assert!(matches!(
+                root.components().next(),
+                Some(Component::Prefix(_))
+            ));
+            assert!(root.to_string_lossy().contains('\\'));
+        }
+
+        let workspace = root.to_string_lossy().into_owned();
+        let path = file_path.to_string_lossy().into_owned();
+        assert_eq!(
+            fs_handler::read_file(workspace.clone(), path.clone()).unwrap(),
+            original
+        );
+
+        let hash = comments::calculate_file_hash(workspace.clone(), path.clone()).unwrap();
+        comments::save_comment(
+            workspace.clone(),
+            hash.clone(),
+            path.clone(),
+            comments::Comment {
+                id: "windows-comment".into(),
+                file_hash: hash.clone(),
+                anchor: comments::CommentAnchor {
+                    quote: "CRLF 内容 & ^ #".into(),
+                    offset: 13,
+                    length: 15,
+                },
+                content: "Windows 路径评论".into(),
+                status: "open".into(),
+                created_at: 10,
+                updated_at: 10,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            comments::load_comments(workspace.clone(), hash, path.clone())
+                .unwrap()
+                .len(),
+            1
+        );
+
+        let output = root.join("导出 &^#.html").to_string_lossy().into_owned();
+        search::export_as_html(workspace.clone(), path, output.clone(), None, false).unwrap();
+        assert!(fs::read_to_string(output)
+            .unwrap()
+            .contains("CRLF 内容 &amp; ^ #"));
 
         fs::remove_dir_all(root).unwrap();
     }

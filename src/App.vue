@@ -333,7 +333,7 @@
       </aside>
 
       <section class="flex-1 min-w-0 min-h-0 flex flex-col">
-        <div v-if="workspace.openingPath" role="status" class="px-4 py-2 text-sm">Opening {{ workspace.openingPath.split('/').pop() }}…</div>
+        <div v-if="workspace.openingPath" role="status" class="px-4 py-2 text-sm">Opening {{ fileNameFromPath(workspace.openingPath) }}…</div>
         <div v-if="!workspace.folderPath" class="apple-onboarding flex-1 overflow-auto px-6 py-10 sm:px-10">
           <section class="apple-onboarding-copy mx-auto flex min-h-full flex-col justify-center">
             <p class="text-sm font-medium text-blue-700">MD+HTML Reader</p>
@@ -383,8 +383,8 @@
         <div v-else class="flex-1 min-h-0 flex flex-col overflow-hidden">
           <nav role="tablist" aria-label="文档标签" class="flex shrink-0 overflow-x-auto border-b bg-[#fafafc] px-2 pt-2">
             <div v-for="tab in workspace.tabs" :key="tab.path" class="flex items-center gap-2 rounded-t-lg px-3 py-2 text-sm" :class="{ 'bg-white border border-b-white border-gray-200': tab.path === workspace.currentFile?.path }">
-              <button role="tab" :aria-selected="tab.path === workspace.currentFile?.path" @click="openFile(tab.path)">{{ tab.path.split('/').pop() }}{{ tab.draft !== undefined && tab.draft !== tab.content ? ' ●' : '' }}</button>
-              <IconButton icon="close" :label="'关闭 ' + tab.path.split('/').pop()" @click="closeTab(tab.path)" />
+              <button role="tab" :aria-selected="tab.path === workspace.currentFile?.path" @click="openFile(tab.path)">{{ fileNameFromPath(tab.path) }}{{ tab.draft !== undefined && tab.draft !== tab.content ? ' ●' : '' }}</button>
+              <IconButton icon="close" :label="'关闭 ' + fileNameFromPath(tab.path)" @click="closeTab(tab.path)" />
             </div>
           </nav>
           <div v-for="tab in workspace.tabs" v-show="tab.path === workspace.currentFile?.path" :data-active-document="tab.path === workspace.currentFile?.path" :key="tab.path" class="flex-1 min-h-0 overflow-hidden">
@@ -583,6 +583,7 @@ import './styles/markdown.css'
 import type { Selection } from './utils/selection'
 import type { CommentAnchor } from './utils/comment-anchor'
 import { locale, setLocale, t, type AppLocale } from './i18n'
+import { fileNameFromPath, joinFilePath } from './utils/path'
 
 const MarkdownDocument = defineAsyncComponent(() =>
   import('./components/MarkdownDocument.vue').then(module => module.default)
@@ -739,8 +740,6 @@ const assistantSessionPermissions = new Set<string>()
 let unlistenCloseRequested: (() => void) | null = null
 let appUnmounted = false
 const isE2E = import.meta.env.MODE === 'e2e'
-const e2eWorkspacePath = '/tmp/markdown-html-e2e-workspace'
-const e2eExportPath = `${e2eWorkspacePath}/note.html`
 const currentIsMarkdown = computed(() => {
   return workspace.currentFile?.path.toLowerCase().endsWith('.md') || false
 })
@@ -806,7 +805,7 @@ function changeLocale(event: Event) {
 
 function describeAssistantWritePermissionScope(scope: AssistantWritePermissionScope | null) {
   if (!scope) return t('thisDocumentModel')
-  const fileName = scope.filePath.split('/').pop() || scope.filePath
+  const fileName = fileNameFromPath(scope.filePath)
   const modelName = scope.model.split('|').slice(-1)[0] || ''
   const serviceName = scope.service === 'openai-compatible'
     ? t('openAiModel', { model: modelName })
@@ -1040,7 +1039,7 @@ async function openFolder() {
   workspaceError.value = null
   try {
     const selected = isE2E
-      ? e2eWorkspacePath
+      ? await invoke<string>('e2e_workspace_path')
       : await open({
           directory: true,
           multiple: false,
@@ -1136,7 +1135,7 @@ async function deleteCurrentMarkdownFile() {
   const workspacePath = workspace.folderPath
   if (!currentFile || !workspacePath || !currentIsMarkdown.value || isDeletingMarkdown.value) return
 
-  const fileName = currentFile.path.split('/').pop() || currentFile.path
+  const fileName = fileNameFromPath(currentFile.path)
   const approved = isE2E
     ? confirm(t('deleteMarkdownConfirm', { name: fileName }))
     : await ask(t('deleteMarkdownConfirm', { name: fileName }), { title: t('deleteMarkdownFile'), kind: 'warning' })
@@ -1242,7 +1241,7 @@ async function exportHtml() {
     await saveMarkdownBeforeHtmlGeneration(sourceFile.path)
     const defaultPath = sourceFile.path.replace(/\.[^/.]+$/, '.html')
     const outputPath = isE2E
-      ? e2eExportPath
+      ? joinFilePath(workspacePath, 'note.html')
       : await save({
           defaultPath,
           filters: [{ name: 'HTML', extensions: ['html'] }],
@@ -1276,7 +1275,7 @@ async function generateAiReadingHtml() {
 
   const approved = await ask(
     t('aiReadingConfirm', {
-      file: sourceFile.path.split('/').pop() || sourceFile.path,
+      file: fileNameFromPath(sourceFile.path),
       count: editorRef.value?.getCurrentContent().length || sourceFile.content.length,
       markdown: includeMarkdownSource.value ? t('aiReadingIncludesMarkdown') : '',
     }),
@@ -1343,7 +1342,7 @@ async function translateMarkdownFile() {
       workspace.currentFile?.content
     )
 
-    const outputName = result.outputPath.split('/').pop() || result.outputPath
+    const outputName = fileNameFromPath(result.outputPath)
     markdownTranslationMessage.value = t('chineseCopyCreated', { name: outputName })
   } catch (error) {
     console.error('Failed to create Chinese translation copy:', error)
@@ -1454,7 +1453,7 @@ async function runDocumentAssistant(mode: DocumentAssistantMode) {
   const actionLabel = mode === 'suggestions' ? t('suggestImprovements') : t('improveCurrentDocument')
   const approved = await ask(
     t('assistantConfirm', {
-      file: sourceFile.path.split('/').pop() || sourceFile.path,
+      file: fileNameFromPath(sourceFile.path),
       count: editorRef.value?.getCurrentContent().length || sourceFile.content.length,
       comments: assistantComments.length,
       action: actionLabel,

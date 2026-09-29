@@ -8,7 +8,7 @@
 
 从仓库根目录执行：
 
-前置版本：Node.js 24+、pnpm 11.7.0、Rust 1.96+。仓库已包含 `.npmrc` 固定 npm registry，并在 `package.json` 通过 `packageManager` 固定 pnpm 版本。
+前置版本：Node.js 24+、pnpm 11.7.0、Rust 1.96+。Windows 使用 `x86_64-pc-windows-msvc`，并需安装 Microsoft C++ 构建工具。仓库已包含 `.npmrc` 固定 npm registry，并在 `package.json` 通过 `packageManager` 固定 pnpm 版本。
 
 最新本地验证还覆盖了不含 `node_modules`、`dist` 和 `src-tauri/target` 的临时副本，用于模拟新用户首次安装、测试、构建和本地 DMG smoke。
 
@@ -23,6 +23,8 @@ pnpm run tauri:build
 pnpm run tauri:build:dmg
 pnpm run smoke:dmg
 pnpm run test:e2e
+# 仅在 Windows 10/11 x64 上
+pnpm run tauri:build:windows
 ```
 
 命令覆盖范围：
@@ -38,6 +40,7 @@ pnpm run test:e2e
 | `pnpm run smoke:dmg` | 本地 macOS smoke：挂载 DMG、复制 App、校验签名、启动 App 进程并清理 |
 | `pnpm run release:notarize` | 正式发布路径：需要 Developer ID 证书和 notarytool keychain profile；执行签名、公证、staple 和验证 |
 | `pnpm run test:e2e` | WebdriverIO embedded provider 启动真实 Tauri WebView，覆盖核心窗口路径和新进程重开后的评论持久化 |
+| `pnpm run tauri:build:windows` | 使用 `x86_64-pc-windows-msvc` 构建 NSIS `setup.exe`；当前用户安装、英文/简中、WebView2 download bootstrapper |
 
 ## 自动化覆盖
 
@@ -69,11 +72,11 @@ pnpm run test:e2e
 | `test/e2e/app.spec.ts` | 真实 Tauri WebView 加载、WDIO Tauri bridge、打开临时目录、打开 Markdown、设置编辑内容、保存写盘、添加评论、刷新后评论仍存在、文件名搜索、内容搜索、导出 HTML |
 | `test/e2e/reopen.spec.ts` | 第一轮 Tauri 进程创建评论，第二轮新 Tauri 进程打开同一临时目录并确认评论仍存在 |
 
-说明：窗口 E2E 使用 `e2e` 构建模式绕过原生目录选择和保存对话框，并通过测试专用钩子设置 Milkdown 当前内容；评论选区由程序化文本选择辅助。它验证真实 Tauri WebView、真实 Rust 命令、真实临时文件系统链路和新进程重开后的 sidecar 读取，但不替代原生系统对话框、真实键盘输入、手工鼠标选择和手工关闭重开操作验收。
+说明：窗口 E2E 使用 `e2e` 构建模式绕过原生目录选择和保存对话框，并通过测试专用钩子设置 Milkdown 当前内容；评论选区由程序化文本选择辅助。测试工作区来自 Node `os.tmpdir()`，默认目录名包含空格、中文和 `&^#`，也可用 `E2E_WORKSPACE_PATH` 覆盖。启动器按平台选择无扩展名二进制或 `.exe`、动态分配 embedded WebDriver 端口，并把应用生命周期交给 WebdriverIO Tauri service。它验证真实 Tauri WebView、真实 Rust 命令、真实临时文件系统链路和新进程重开后的 sidecar 读取，但不替代原生系统对话框、真实键盘输入、手工鼠标选择和手工关闭重开操作验收。
 
 已尝试用 WebDriver actions、WebDriver 粘贴和 macOS System Events 替代编辑钩子。当前 embedded provider 对 WebView printable 输入不稳定，System Events 在当前机器缺少发送按键权限，因此真实键盘输入仍保留为人工验收项。
 
-WebdriverIO Tauri service 使用 embedded provider 时，日志里仍可能出现 `tauri-driver not found` 诊断错误；只要 spec summary 通过且命令退出码为 0，就不需要额外安装外部 `tauri-driver`。
+WebdriverIO Tauri service 使用 embedded provider 时不依赖外部 `tauri-driver`。[上游平台支持说明](https://webdriver.io/docs/desktop-testing/tauri/platform-support/)明确列出 Windows embedded provider 为受支持路径，[插件说明](https://webdriver.io/docs/desktop-testing/tauri/plugin-setup/)也说明服务会在测试结束时终止应用；Windows CI 因此运行完整的 core、icons、sidebar 和 reopen E2E，而不是跳过。若服务诊断中出现找不到外部 `tauri-driver` 的信息，以 embedded provider 的 spec summary 和命令退出码为准。
 
 ## 手工端到端验收清单
 
@@ -99,6 +102,8 @@ pnpm exec tauri dev
 
 更详细的流程见 [MANUAL_ACCEPTANCE.md](MANUAL_ACCEPTANCE.md)。
 
+Windows 10 22H2 / Windows 11 x64 的安装、重装和卸载验收单独见 [WINDOWS_ACCEPTANCE.md](WINDOWS_ACCEPTANCE.md)。该清单必须在对应 Windows 实机执行，不能由当前 macOS 本地结果替代。
+
 建议记录格式：
 
 | 步骤 | 结果 | 备注 |
@@ -119,6 +124,7 @@ pnpm exec tauri dev
 - `comment-highlight.ts` 高亮渲染测试
 - 扩展 WebdriverIO + `@wdio/tauri-service` embedded WebDriver，尽量减少测试专用编辑钩子和程序化选择辅助
 - Developer ID 签名、公证和 notarized DMG 安装后启动验证
+- Windows 10 22H2 与 Windows 11 x64 实机安装、重装、卸载和 Authenticode 验证
 
 ## 正式发布验证
 
@@ -152,4 +158,4 @@ pnpm test:coverage
 
 ## CI
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) 使用 macOS runner，运行类型检查、前端单元测试、生产构建、Rust 测试和真实 Tauri E2E。它不执行需要签名证书的发布步骤；远端通过记录和签名/公证状态统一在 [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) 复核。
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) 保留 macOS runner，并新增 `windows-latest` x64 门禁。两端都运行 frozen install、类型检查、前端单元测试、生产构建、Rust 测试和真实 Tauri E2E；Windows 额外执行 NSIS release build 并上传 `setup.exe` artifact。CI 不写入或伪造签名证书：macOS Developer ID/公证与 Windows Authenticode 仍是外部凭据门禁，状态统一在 [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) 复核。

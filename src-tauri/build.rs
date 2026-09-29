@@ -27,6 +27,7 @@ fn main() {
             "suggest_document_improvements",
             "optimize_document_with_comments",
             "open_html_in_default_browser",
+            "e2e_workspace_path",
         ]),
     ))
     .expect("failed to build Tauri application")

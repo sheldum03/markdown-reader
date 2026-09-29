@@ -6,6 +6,7 @@
 
 - 内测构建：核心自动化与已记录的人工原生交互可作为依据。
 - 正式 macOS 发布：**未完成**。Developer ID 签名、公证和 notarized DMG 安装验证尚未完成。
+- Windows 10/11 x64 第一阶段发布：**未完成**。代码与 CI 门禁已配置；仍需 Windows runner 首次通过、Windows 10 22H2 / Windows 11 实机验收和外部 Authenticode 证书。
 
 ## 发布门禁
 
@@ -17,9 +18,16 @@
 | 原生人工交互 | 已通过 | [2026-07-11 记录](docs/manual-acceptance-2026-07-11.md) 与 [2026-07-12 补充](docs/manual-acceptance-2026-07-12.md) |
 | GitHub Actions 复现上述自动化门禁 | 待首次远端通过 | [CI 工作流](.github/workflows/ci.yml) 在 push 和 pull request 时执行 |
 | Developer ID 签名、公证和 notarized DMG 安装验证 | 未完成 | 配置证书和 `NOTARY_KEYCHAIN_PROFILE` 后执行 `pnpm run release:notarize` |
+| Windows x64 类型检查、前端测试、Vite build、Rust 测试 | CI 已配置，待首次远端通过 | `windows-latest`，Rust target 为 `x86_64-pc-windows-msvc` |
+| Windows 真实 Tauri E2E | CI 已配置，待首次远端通过 | WebdriverIO embedded provider；覆盖 core、icons、sidebar、reopen，使用动态端口和 `.exe` 路径 |
+| Windows NSIS 构建与 artifact | CI 已配置，待首次远端通过 | `pnpm run tauri:build:windows`；上传 `*-setup.exe` |
+| Windows 10 22H2 / Windows 11 x64 实机验收 | 未完成 | 按 [WINDOWS_ACCEPTANCE.md](WINDOWS_ACCEPTANCE.md) 分别记录安装、核心功能、重装和卸载 |
+| Windows Authenticode 签名与签名验证 | 未完成 | 需要外部代码签名证书；证书与私钥不得提交仓库 |
 
 ## 复核规则
 
 1. 每次准备发布时，先确认 GitHub Actions 对该提交已通过。
 2. 若原生目录选择、保存对话框、键盘编辑、鼠标选区或窗口关闭行为有改动，按 [MANUAL_ACCEPTANCE.md](MANUAL_ACCEPTANCE.md) 重新记录受影响路径。
 3. 只有表中全部门禁完成，才可将构建标记为正式 macOS 发布；签名和公证未闭环前，只能称为内测或 ad-hoc 构建。
+4. Windows 仅支持 Windows 10 22H2 / Windows 11 x64、NSIS 当前用户在线安装。ARM64、32 位、MSI、Microsoft Store、Windows 7/8、离线安装与 UNC 网络路径不能作为本阶段“已支持”能力。
+5. Windows CI 通过只能证明 runner 环境中的自动化与打包成功；原生安装器交互、默认浏览器、重装/卸载和系统策略差异必须由 Windows 实机记录补齐。

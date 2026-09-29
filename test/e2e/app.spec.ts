@@ -1,8 +1,9 @@
 import { createServer } from 'node:http'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { basename, dirname, join } from 'node:path'
 
-const workspacePath = '/tmp/markdown-html-e2e-workspace'
+const workspacePath = process.env.E2E_WORKSPACE_PATH || join(tmpdir(), 'markdown-html-e2e-workspace 中文 &^#')
 const notePath = join(workspacePath, 'note.md')
 const secondNotePath = join(workspacePath, 'second.md')
 const previewPath = join(workspacePath, 'preview.html')
@@ -173,7 +174,7 @@ describe('MD+HTML Reader Tauri window', () => {
     await openDocumentTools()
     await buttonWithText('Find files').click()
     await $('input[placeholder="Find a file..."]').setValue('note')
-    await waitForBodyText('markdown-html-e2e-workspace')
+    await waitForBodyText(basename(workspacePath))
     await browser.keys('Escape')
 
     await buttonWithText('Search content').click()

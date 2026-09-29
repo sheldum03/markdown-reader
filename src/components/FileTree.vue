@@ -34,6 +34,7 @@
         @click="handleSelect(file.path)"
         :ref="(el) => setItemRef(file.path, el)"
         :data-file-path="file.path"
+        :data-file-name="file.name"
         :title="file.path"
         :disabled="disabled"
         class="apple-file-item w-full text-left"

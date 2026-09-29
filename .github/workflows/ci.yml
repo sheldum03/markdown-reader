@@ -8,14 +8,14 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  macos:
     runs-on: macos-latest
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -27,3 +27,33 @@ jobs:
       - run: cargo test
         working-directory: src-tauri
       - run: pnpm run test:e2e
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@1.96.0
+        with:
+          targets: x86_64-pc-windows-msvc
+      - run: pnpm install --frozen-lockfile
+        env:
+          CI: true
+      - run: pnpm exec vue-tsc --noEmit
+      - run: pnpm test -- --run
+      - run: pnpm build
+      - run: cargo test --target x86_64-pc-windows-msvc
+        working-directory: src-tauri
+      - run: pnpm run test:e2e
+      - run: pnpm run tauri:build:windows
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-nsis-x64
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error

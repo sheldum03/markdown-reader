@@ -63,6 +63,7 @@ import { createAnchor } from '../utils/comment-anchor'
 import { mapDomSelection } from '../lib/markdown/sourceMap'
 import { prepareMarkdown } from '../lib/markdown/renderer'
 import { t } from '../i18n'
+import { fileNameFromPath } from '../utils/path'
 
 const props = defineProps<{
   file: { path: string; content: string }
@@ -95,7 +96,7 @@ const currentSelection = ref<Selection | null>(null)
 let cleanupSelection: (() => void) | null = null
 
 const fileName = computed(() => {
-  return props.file.path.split('/').pop() || props.file.path
+  return fileNameFromPath(props.file.path)
 })
 
 const lastSavedText = computed(() => {

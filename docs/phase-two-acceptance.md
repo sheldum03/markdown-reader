@@ -29,11 +29,11 @@ pnpm check:mcp
 pnpm tauri:build
 ```
 
-原生 E2E 只重建 `/tmp/markdown-html-e2e-workspace`；测试应用 identifier 与生产版分离，前端输出使用 `dist-e2e/`。生产 App 构建在 `src-tauri/target/release/bundle/macos/MD+HTML Reader.app`。
+原生 E2E 只重建 Node `os.tmpdir()` 下名称含空格、中文和 `&^#` 的测试工作区（可用 `E2E_WORKSPACE_PATH` 覆盖）；测试应用 identifier 与生产版分离，前端输出使用 `dist-e2e/`。生产 App 构建在 `src-tauri/target/release/bundle/macos/MD+HTML Reader.app`。
 
 可运行产物：[Apple Silicon macOS ZIP](../src-tauri/target/release/bundle/macos/MD-HTML-Reader-phase-two-macos.zip)，约 8.3 MiB，解压后打开 App。已补做本地 ad-hoc 签名并通过 `codesign --verify --deep --strict`；不是 Developer ID 公证发行包。ZIP SHA-256：`be798e86ef69f62248747408f5f11cedba621191e1d89e9b9970a56992168617`。构建产物保存在本机 target 目录，不提交到 Git。
 
-本轮结果：类型检查通过；前端 19 个测试文件、116 项通过；Rust 38 项通过；原生核心流程 7 项、跨进程重开 2 阶段、新增验收 4 项全部通过。MCP 使用真实 release 二进制分别验证只读和授权写入，两种模式各收到 7 条有效协议响应。既有回归覆盖 Markdown/HTML/YAML、评论、搜索、翻译配置和服务、AI 阅读版审批与写回、保存及关闭保护。WebDriver 退出时仍有测试服务清理 mock 的 session 警告，不影响用例结果。
+最近一次跨平台适配后的本机结果：类型检查通过；前端 21 个测试文件、140 项通过；Rust 44 项通过；原生核心流程、图标、侧栏、跨进程重开和新增验收 4 项全部通过。MCP 使用真实 release 二进制分别验证只读和授权写入，两种模式各收到 7 条有效协议响应。既有回归覆盖 Markdown/HTML/YAML、评论、搜索、翻译配置和服务、AI 阅读版审批与写回、保存及关闭保护。WebDriver 退出时仍有测试服务清理 mock 的 session 警告，不影响用例结果。
 
 ## 性能与包体
 
@@ -41,18 +41,17 @@ pnpm tauri:build
 
 | 原生样本：10,000,619 字符 / 10,492,747 UTF-8 字节 | 测量值 |
 | --- | ---: |
-| 从磁盘打开到首屏 | 1,342 ms |
-| 首屏挂载 | 8 块 / 80 DOM 节点 |
-| 打开期间最大主线程定时器间隔 | 998 ms |
-| 跳转到约 80% 位置后的块更新 | 2 ms / 101 DOM 节点 |
-| 打开源码编辑器 | 101 ms / 55 DOM 节点 |
-| 源码插入事务与事件循环 | 11 ms |
-| 测试应用主进程 RSS：阅读 / 编辑 | 127.3 / 152.0 MiB |
-| 同次启动观察到的 WebContent RSS：阅读 / 编辑 | 548.0 / 569.6 MiB |
+| 从磁盘打开到首屏 | 1,204 ms |
+| 首屏挂载 | 7 块 / 62 DOM 节点 |
+| 打开期间最大主线程定时器间隔 | 1,000 ms |
+| 跳转到约 80% 位置后的块更新 | 4 ms / 101 DOM 节点 |
+| 打开源码编辑器 | 98 ms / 55 DOM 节点 |
+| 源码插入事务与事件循环 | 7 ms |
+| 原生 RSS | 自动测试不跨平台猜测；按人工验收在系统任务管理器记录 |
 
-以上性能来自 debug 原生测试包；release 包完成构建和 MCP 子进程验证，未将 debug 性能数字标成 release 基准。离线 HTML 样本为 394,236 字节，独立 WebView 中确认公式、SVG、图片可见且没有外部资源 URL。运行时加载标记显示纯文本阅读没有加载编辑/数学/图表/高亮引擎；当前 WebKit 的资源计时列表为空，不能单靠该列表证明没有请求。
+以上性能来自 debug 原生测试包；release 包完成构建和 MCP 子进程验证，未将 debug 性能数字标成 release 基准。离线 HTML 样本为 394,232 字节，独立 WebView 中确认公式、SVG、图片可见且没有外部资源 URL。运行时加载标记显示纯文本阅读没有加载编辑/数学/图表/高亮引擎；当前 WebKit 的资源计时列表为空，不能单靠该列表证明没有请求。
 
-内存记录为 `ps` 的进程 RSS（KiB），不是 JS heap；JSON 保留采样时本应用及 WebKit 进程的 PID。WebKit 由 launchd 启动，不能把所有 WebKit 进程简单相加算成本应用。大文件解析索引仍常驻 Worker 内存，DOM 虚拟化不等于恒定内存。
+RSS 不再由 E2E 调用平台专用的 `ps` 自动采集。Windows 请在任务管理器、macOS 请在活动监视器中记录应用及 WebView/WebContent 进程，并注明测量平台；不能把所有系统 WebView 进程简单相加算成本应用。大文件解析索引仍常驻 Worker 内存，DOM 虚拟化不等于恒定内存。
 
 包体统计包含静态依赖闭包；SourceEditor/Mermaid 闭包可能与已加载阅读模块重叠，不能简单相加。同轮初次构建的 SourceEditor 单块约 531 KB、Milkdown 574 KB、Mermaid 核心 682 KB；拆分后编辑器/核心模块分散到可复用块。ELK 和 Mermaid parser 的上游单体库仍超过 500 KB，按需加载且保留构建告警。拆块不代表总代码体积按同等比例减少。
 

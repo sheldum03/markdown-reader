@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const workspace = '/tmp/markdown-html-e2e-workspace'
+const workspace = process.env.E2E_WORKSPACE_PATH || join(tmpdir(), 'markdown-html-e2e-workspace 中文 &^#')
 const source = '---\nname: ui-design-assistant\ndescription: UI 界面设计师\n---\n\n# UI 界面设计师 — 灵魂\n\n你好！我是 **UI 界面设计师数字人**。\n\n## 能力\n\n- 保留 Markdown 源代码\n- 支持阅读、编辑与分屏\n\n```ts\nconst message = "Hello, world"\n```\n'
 
 describe('Source editing and icon controls', () => {
@@ -14,7 +15,7 @@ describe('Source editing and icon controls', () => {
   })
   it('shows raw Markdown with named IconPark controls and preview on the left in split mode', async () => {
     await $('//button[normalize-space(.)="打开文件夹"]').click()
-    const file = $('[data-file-path$="/SOUL.md"]')
+    const file = $('[data-file-name="SOUL.md"]')
     await file.waitForExist()
     await file.click()
     await $('[aria-label="编辑"]').click()
@@ -76,7 +77,7 @@ describe('Source editing and icon controls', () => {
       async () => existsSync(join(workspace, '桌面端新建.md')),
       { timeoutMsg: 'Expected the new Markdown file to be created on disk' },
     )
-    const createdFile = $('[data-file-path$="/桌面端新建.md"]')
+    const createdFile = $('[data-file-name="桌面端新建.md"]')
     await browser.waitUntil(
       async () => (await createdFile.getAttribute('class'))?.includes('bg-blue-100') || false,
       { timeoutMsg: 'Expected the new Markdown file to become the current document' },

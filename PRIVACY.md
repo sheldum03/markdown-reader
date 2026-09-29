@@ -20,7 +20,7 @@ You are responsible for choosing a provider and ensuring you have permission to 
 
 ## API credentials
 
-For OpenAI-compatible services, the Base URL and selected model can be stored locally for convenience. When you save the settings, the API key is written to a `.env` file in the current user's application configuration directory so it can be reused in later sessions. On Unix systems, the app sets that file to owner-only permissions (`0600`). The key is not stored in the selected workspace or in the operating system keychain; any person or process with access to your user account and that configuration file may be able to read it.
+For OpenAI-compatible services, the Base URL and selected model can be stored locally for convenience. When you save the settings, the API key is written to a `.env` file in the current user's application configuration directory so it can be reused in later sessions. With the current identifier, the Windows location is under `%APPDATA%\com.markdown-html.reader\.env`; the exact `%APPDATA%` directory is resolved by Windows for the signed-in user. On Unix systems, the app sets that file to owner-only permissions (`0600`). Windows access is governed by the user's profile and filesystem ACLs; the app does not add a separate ACL or encryption layer. The key is not stored in the selected workspace, Windows Credential Manager, macOS Keychain, or another credential vault. Any person or process with access to your user account and that configuration file may be able to read it.
 
 ## Data sharing and support
 

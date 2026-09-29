@@ -67,6 +67,17 @@ fn request_path(path: &str) -> Option<PathBuf> {
     #[cfg(not(windows))]
     let decoded = decoded.as_ref();
     let path = PathBuf::from(decoded);
+    #[cfg(windows)]
+    if matches!(
+        path.components().next(),
+        Some(std::path::Component::Prefix(prefix))
+            if matches!(
+                prefix.kind(),
+                std::path::Prefix::UNC(_, _) | std::path::Prefix::VerbatimUNC(_, _)
+            )
+    ) {
+        return None;
+    }
     path.is_absolute().then_some(path)
 }
 
@@ -116,8 +127,9 @@ mod tests {
     #[test]
     fn decodes_windows_absolute_paths() {
         assert_eq!(
-            request_path("/C%3A/preview%20workspace/page.html"),
-            Some(PathBuf::from("C:/preview workspace/page.html"))
+            request_path("/C%3A/preview%20workspace/%E4%B8%AD%E6%96%87%20%26%5E%23.html"),
+            Some(PathBuf::from("C:/preview workspace/中文 &^#.html"))
         );
+        assert_eq!(request_path(r"/%5C%5Cserver%5Cshare%5Cpage.html"), None);
     }
 }

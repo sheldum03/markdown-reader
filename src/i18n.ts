@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { primaryShortcut } from './utils/platform'
 
 export type AppLocale = 'en' | 'zh-CN'
 
@@ -151,7 +152,7 @@ const messages = {
     aiDraftApplied: 'AI draft applied and current document saved',
     couldNotResolveComment: 'Could not resolve comment: {message}',
     saving: 'Saving...',
-    save: 'Save (⌘S)',
+    save: 'Save ({shortcut})',
     saveFailed: 'Save failed',
     unsavedChanges: 'Unsaved changes',
     discardFile: 'This file has unsaved changes. Switching files will discard them. Continue?',
@@ -215,6 +216,12 @@ const messages = {
 export type TranslationKey = keyof typeof messages.en
 
 export function t(key: TranslationKey, values: Record<string, string | number> = {}) {
-  const text = messages[locale.value][key] || messages.en[key]
-  return text.replace(/\{(\w+)\}/g, (_, name: string) => String(values[name] ?? `{${name}}`))
+  const translated = messages[locale.value][key] || messages.en[key]
+  const text = key === 'save'
+    ? translated.replace('⌘S', primaryShortcut('S'))
+    : translated
+  const replacements: Record<string, string | number> = key === 'save'
+    ? { shortcut: primaryShortcut('S'), ...values }
+    : values
+  return text.replace(/\{(\w+)\}/g, (_, name: string) => String(replacements[name] ?? `{${name}}`))
 }

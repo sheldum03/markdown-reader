@@ -3,11 +3,6 @@
     "beforeBuildCommand": "pnpm build --mode e2e --outDir dist-e2e",
     "frontendDist": "../dist-e2e"
   },
-  "bundle": {
-    "targets": [
-      "app"
-    ]
-  },
   "app": {
     "withGlobalTauri": true,
     "security": {
@@ -28,7 +23,8 @@
             "core:window:default",
             "dialog:default",
             "wdio:default",
-            "wdio-webdriver:default"
+            "wdio-webdriver:default",
+            "allow-e2e-workspace-path"
           ]
         }
       ]

@@ -179,4 +179,26 @@ mod tests {
         std::fs::remove_dir_all(&root).unwrap();
         std::fs::remove_file(outside).unwrap();
     }
+
+    #[test]
+    fn configuration_preserves_executable_and_special_workspace_paths() {
+        let root = std::env::temp_dir().join(format!("reader mcp &^# 中文-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+
+        let configuration = mcp_configuration(root.to_string_lossy().into_owned(), true).unwrap();
+        let server = &configuration["mcpServers"]["markdown-html-reader"];
+        let command = server["command"].as_str().unwrap();
+        let args = server["args"].as_array().unwrap();
+        let canonical_root = std::fs::canonicalize(&root).unwrap();
+
+        assert!(PathBuf::from(command).is_absolute());
+        assert_eq!(args[0], "--mcp");
+        assert_eq!(args[1], "--workspace");
+        assert_eq!(args[2], canonical_root.to_string_lossy().as_ref());
+        assert_eq!(args[3], "--allow-write");
+        #[cfg(windows)]
+        assert!(command.ends_with(".exe"));
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }

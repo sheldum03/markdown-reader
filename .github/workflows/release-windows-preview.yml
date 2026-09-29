@@ -1,0 +1,79 @@
+name: Release unsigned Windows preview
+
+on:
+  push:
+    tags:
+      - "v*-preview.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-preview-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Windows x64 preview
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@1.96.0
+        with:
+          targets: x86_64-pc-windows-msvc
+      - run: pnpm install --frozen-lockfile
+        env:
+          CI: true
+      - run: pnpm exec vue-tsc --noEmit
+      - run: pnpm test -- --run
+      - run: pnpm build
+      - run: cargo test --target x86_64-pc-windows-msvc
+        working-directory: src-tauri
+      - run: pnpm run test:e2e
+      - run: pnpm run tauri:build:windows
+      - name: Stage installer and checksum
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe")
+          if ($installers.Count -ne 1) {
+            throw "Expected exactly one NSIS installer, found $($installers.Count)."
+          }
+          New-Item -ItemType Directory -Path release-artifacts | Out-Null
+          Copy-Item $installers[0].FullName release-artifacts/
+          $hash = (Get-FileHash $installers[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($installers[0].Name)" | Set-Content release-artifacts/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-preview-x64
+          path: release-artifacts/*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub prerelease
+    needs: windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: windows-preview-x64
+          path: release-artifacts
+      - name: Publish unsigned preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release-artifacts/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --prerelease \
+            --title "MD+HTML Reader $GITHUB_REF_NAME (unsigned Windows preview)" \
+            --notes "Unsigned Windows x64 preview built and tested by GitHub Actions from protected tag \`$GITHUB_REF_NAME\`. Windows may show an unknown-publisher warning. Verify the installer with \`SHA256SUMS.txt\` before running it."

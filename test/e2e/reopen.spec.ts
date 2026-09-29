@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const workspacePath = '/tmp/markdown-html-e2e-workspace'
+const workspacePath = process.env.E2E_WORKSPACE_PATH || join(tmpdir(), 'markdown-html-e2e-workspace 中文 &^#')
 const notePath = join(workspacePath, 'note.md')
 const phase = process.env.E2E_REOPEN_PHASE
 

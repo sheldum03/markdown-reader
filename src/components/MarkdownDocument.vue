@@ -1,7 +1,7 @@
 <template>
   <div class="h-full flex flex-col min-w-0">
     <div class="document-toolbar flex items-center gap-3 px-4 border-b border-gray-200 bg-white">
-      <span class="text-sm text-gray-600 truncate flex-1" :title="file.path">{{ file.path.split('/').pop() }}</span>
+      <span class="text-sm text-gray-600 truncate flex-1" :title="file.path">{{ fileNameFromPath(file.path) }}</span>
       <div class="document-modes" role="group" aria-label="文档模式">
         <IconButton v-for="item in modes" :key="item.value" :icon="item.icon" :label="item.label" :aria-pressed="mode === item.value" :disabled="switching" @click="setMode(item.value)" />
       </div>
@@ -32,6 +32,7 @@ import type { OutlineHeading } from '../lib/markdown/renderer'
 import type { Selection } from '../utils/selection'
 import type { createAnchor } from '../utils/comment-anchor'
 import { t } from '../i18n'
+import { fileNameFromPath } from '../utils/path'
 
 const SourceEditor = defineAsyncComponent(() => { performance.mark('reader:load:source'); return import('./SourceEditor.vue').then(module => module.default) })
 const editorKind = ref<'source' | 'rich'>('source')

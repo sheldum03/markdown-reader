@@ -1,7 +1,8 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const workspace = '/tmp/markdown-html-e2e-workspace'
+const workspace = process.env.E2E_WORKSPACE_PATH || join(tmpdir(), 'markdown-html-e2e-workspace 中文 &^#')
 
 describe('Sidebar resizing', () => {
   before(async () => {
@@ -17,7 +18,7 @@ describe('Sidebar resizing', () => {
 
   it('drags, persists and constrains desktop sidebars without narrowing the document pane on compact windows', async () => {
     await $('//button[normalize-space(.)="Open folder"]').click()
-    const file = $('[data-file-path$="/note.md"]')
+    const file = $('[data-file-name="note.md"]')
     await file.waitForExist()
     await file.click()
     await $('[aria-label="编辑"]').click()
@@ -65,7 +66,7 @@ describe('Sidebar resizing', () => {
     await browser.setWindowSize(1280, 900)
     await browser.refresh()
     await $('//button[normalize-space(.)="Open folder"]').click()
-    const reopenedFile = $('[data-file-path$="/note.md"]')
+    const reopenedFile = $('[data-file-name="note.md"]')
     await reopenedFile.waitForExist()
     await reopenedFile.click()
     const restoredWidths = await browser.execute(() => ({
