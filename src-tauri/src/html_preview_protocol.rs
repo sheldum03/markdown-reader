@@ -114,6 +114,7 @@ fn error_response(status: StatusCode, message: &str) -> Response<Vec<u8>> {
 mod tests {
     use super::*;
 
+    #[cfg(not(windows))]
     #[test]
     fn decodes_hierarchical_absolute_paths() {
         assert_eq!(
