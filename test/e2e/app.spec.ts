@@ -278,12 +278,22 @@ describe('MD+HTML Reader Tauri window', () => {
     try {
       await browser.switchToWindow(previewWindow)
 
-      await browser.waitUntil(
-        async () => await browser.execute(() =>
-          document.querySelector('#preview-status')?.textContent === 'Rendered inside app'
-        ),
-        { timeoutMsg: 'Expected the full HTML preview to load its module script' }
-      )
+      try {
+        await browser.waitUntil(
+          async () => await browser.execute(() =>
+            document.querySelector('#preview-status')?.textContent === 'Rendered inside app'
+          ),
+          { timeoutMsg: 'Expected the full HTML preview to load its module script' }
+        )
+      } catch {
+        const observed = await browser.execute(() => ({
+          href: location.href,
+          title: document.title,
+          readyState: document.readyState,
+          status: document.querySelector('#preview-status')?.textContent ?? null,
+        }))
+        throw new Error(`Expected the full HTML preview to load its module script; observed ${JSON.stringify(observed)}`)
+      }
       const previewState = await browser.execute(() => {
         const status = document.querySelector<HTMLElement>('#preview-status')
         const image = document.querySelector<HTMLImageElement>('#preview-image')

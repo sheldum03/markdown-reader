@@ -3,7 +3,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{
-    http::{header::CONTENT_TYPE, Response, StatusCode},
+    http::{
+        header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE},
+        Response, StatusCode,
+    },
     AppHandle, Manager, Runtime,
 };
 
@@ -53,6 +56,7 @@ pub fn handle<R: Runtime>(
     match fs::read(&file_path) {
         Ok(content) => Response::builder()
             .status(StatusCode::OK)
+            .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*")
             .header(CONTENT_TYPE, content_type(&file_path))
             .body(content)
             .unwrap(),
@@ -105,6 +109,7 @@ fn content_type(path: &Path) -> &'static str {
 fn error_response(status: StatusCode, message: &str) -> Response<Vec<u8>> {
     Response::builder()
         .status(status)
+        .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*")
         .header(CONTENT_TYPE, "text/plain; charset=utf-8")
         .body(message.as_bytes().to_vec())
         .unwrap()
