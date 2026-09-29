@@ -95,6 +95,16 @@ async function waitForPreviewWindow(mainWindow: string) {
   return (await browser.getWindowHandles()).find(handle => handle !== mainWindow)!
 }
 
+async function closePreviewWindow(previewWindow: string, mainWindow: string) {
+  await browser.tauri.switchWindow(mainWindow)
+  await browser.switchToWindow(previewWindow)
+  await browser.closeWindow()
+  await browser.waitUntil(async () => (await browser.getWindowHandles()).includes(mainWindow), {
+    timeoutMsg: 'Expected the main window to remain after closing the preview window',
+  })
+  await browser.switchToWindow(mainWindow)
+}
+
 describe('MD+HTML Reader Tauri window', () => {
   beforeEach(async () => {
     await browser.execute(() => localStorage.setItem('md-html-reader.locale', 'en'))
@@ -216,7 +226,7 @@ describe('MD+HTML Reader Tauri window', () => {
     const previewWindow = await waitForPreviewWindow(mainWindow)
 
     try {
-      await browser.switchToWindow(previewWindow)
+      await browser.tauri.switchWindow(previewWindow)
       await expect($('#reader-layout')).toHaveAttribute('data-view', 'reading')
       await expect($('#show-source')).toHaveText('Split view')
 
@@ -234,12 +244,7 @@ describe('MD+HTML Reader Tauri window', () => {
       await browser.execute(() => document.getElementById('show-reading')?.click())
       await expect($('#reader-layout')).toHaveAttribute('data-view', 'reading')
     } finally {
-      await browser.switchToWindow(previewWindow)
-      await browser.closeWindow()
-      await browser.waitUntil(async () => (await browser.getWindowHandles()).includes(mainWindow), {
-        timeoutMsg: 'Expected the main window to remain after closing the preview window',
-      })
-      await browser.switchToWindow(mainWindow)
+      await closePreviewWindow(previewWindow, mainWindow)
     }
   })
 
@@ -261,7 +266,7 @@ describe('MD+HTML Reader Tauri window', () => {
     const previewWindow = await waitForPreviewWindow(mainWindow)
 
     try {
-      await browser.switchToWindow(previewWindow)
+      await browser.tauri.switchWindow(previewWindow)
 
       await expect($('#preview-status')).toHaveText('Rendered inside app')
       const previewState = await browser.execute(() => {
@@ -294,12 +299,7 @@ describe('MD+HTML Reader Tauri window', () => {
       }, workspacePath)
       expect(ipcAccess.commandAllowed).toBe(false)
     } finally {
-      await browser.switchToWindow(previewWindow)
-      await browser.closeWindow()
-      await browser.waitUntil(async () => (await browser.getWindowHandles()).includes(mainWindow), {
-        timeoutMsg: 'Expected the main window to remain after closing the preview window',
-      })
-      await browser.switchToWindow(mainWindow)
+      await closePreviewWindow(previewWindow, mainWindow)
     }
   })
 
