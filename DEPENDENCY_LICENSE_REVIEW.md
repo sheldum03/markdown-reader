@@ -4,7 +4,9 @@ Review date: 2026-09-29
 
 Scope: dependencies resolved by `pnpm install --frozen-lockfile` for the production
 frontend and by Cargo's default feature graph for the Windows desktop binary. Build,
-test, and packaging tools are not shipped inside the installed application.
+test, and packaging tools are not shipped inside the installed application. The
+Microsoft WebView2 bootstrapper embedded by the Windows installer is reviewed
+separately below.
 
 ## Result
 
@@ -41,6 +43,20 @@ It resolved 477 packages including the root package. The only weak-copyleft
 entries are `cssparser` 0.36.0, `cssparser-macros` 0.6.1, `dtoa-short` 0.3.5,
 `option-ext` 0.2.0, and `selectors` 0.36.1 under MPL-2.0. Other entries use
 permissive licenses or offer a permissive option such as MIT or Apache-2.0.
+
+## Microsoft WebView2 bootstrapper
+
+The Windows bundle uses Tauri's `downloadBootstrapper` mode. It includes
+Microsoft's small Evergreen WebView2 bootstrapper, not a fixed WebView2 Runtime,
+and downloads the matching Evergreen Runtime when the target system needs it.
+Microsoft's official WebView2 distribution documentation explicitly permits an
+application to ship the Evergreen bootstrapper with the application. The release
+review therefore found no redistribution blocker for this installer payload.
+
+Sources:
+
+- <https://learn.microsoft.com/microsoft-edge/webview2/concepts/distribution>
+- <https://learn.microsoft.com/microsoft-edge/webview2/concepts/evergreen-vs-fixed-version>
 
 ## EPL/MPL obligations
 
