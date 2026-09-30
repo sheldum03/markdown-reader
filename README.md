@@ -91,7 +91,7 @@ enabled. Dependency redistribution findings are recorded in
 
 ## Release status
 
-This is a desktop beta. The macOS application, DMG smoke path, and Tauri E2E have been verified locally on macOS. The Windows x64 GitHub Actions gate has completed successfully, covering type checks, frontend and Rust tests, Vite build, real Tauri E2E, NSIS build, and artifact upload; current runs are available in [GitHub Actions](https://github.com/sheldum03/md-html-reader/actions/workflows/ci.yml). The Windows 10/11 physical-machine checklist remains a release gate. Developer ID/notarization for macOS and Authenticode signing for stable Windows releases also remain external credential gates. See [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+This is a desktop beta. The macOS application, DMG smoke path, and Tauri E2E have been verified locally on macOS. The Windows x64 GitHub Actions gate has completed successfully, covering type checks, frontend and Rust tests, Vite build, real Tauri E2E, NSIS build, and artifact upload; current runs are available in [GitHub Actions](https://github.com/sheldum03/markdown-reader/actions/workflows/ci.yml). The Windows 10/11 physical-machine checklist remains a release gate. Developer ID/notarization for macOS and Authenticode signing for stable Windows releases also remain external credential gates. See [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
 
 ## Development checks
 

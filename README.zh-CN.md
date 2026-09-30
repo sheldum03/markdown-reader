@@ -83,7 +83,7 @@ GitHub Release；本地构建或人工上传的可执行文件不属于官方发
 
 ## 发布状态
 
-这是桌面 Beta 版本。macOS 应用、DMG smoke 和真实 Tauri E2E 已在本机 macOS 验证。Windows x64 GitHub Actions 门禁已完整通过，覆盖类型检查、前端与 Rust 测试、Vite 构建、真实 Tauri E2E、NSIS 构建和产物上传；当前运行记录见 [GitHub Actions](https://github.com/sheldum03/md-html-reader/actions/workflows/ci.yml)。Windows 10/11 实机清单仍是发布门禁。macOS Developer ID/公证和 Windows 正式版 Authenticode 签名也仍依赖外部凭据。详见 [发布检查清单](RELEASE_CHECKLIST.md)。
+这是桌面 Beta 版本。macOS 应用、DMG smoke 和真实 Tauri E2E 已在本机 macOS 验证。Windows x64 GitHub Actions 门禁已完整通过，覆盖类型检查、前端与 Rust 测试、Vite 构建、真实 Tauri E2E、NSIS 构建和产物上传；当前运行记录见 [GitHub Actions](https://github.com/sheldum03/markdown-reader/actions/workflows/ci.yml)。Windows 10/11 实机清单仍是发布门禁。macOS Developer ID/公证和 Windows 正式版 Authenticode 签名也仍依赖外部凭据。详见 [发布检查清单](RELEASE_CHECKLIST.md)。
 
 ## 开发检查
 
