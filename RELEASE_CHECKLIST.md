@@ -17,9 +17,9 @@
 | Rust 命令层测试 | 已在本地验证 | `(cd src-tauri && cargo test)` |
 | 真实 Tauri 窗口 E2E | 已在本地验证 | `pnpm run test:e2e`，覆盖核心路径与跨进程评论持久化 |
 | 原生人工交互 | 已通过 | [2026-07-11 记录](docs/manual-acceptance-2026-07-11.md) 与 [2026-07-12 补充](docs/manual-acceptance-2026-07-12.md) |
-| GitHub Actions 复现上述自动化门禁 | 已通过 | [`macos` 与 `windows` 工作流](https://github.com/sheldum03/md-html-reader/actions/workflows/ci.yml) |
+| GitHub Actions 复现上述自动化门禁 | 已通过 | [`macos` 与 `windows` 工作流](https://github.com/sheldum03/markdown-reader/actions/workflows/ci.yml) |
 | Developer ID 签名、公证和 notarized DMG 安装验证 | 未完成 | 配置证书和 `NOTARY_KEYCHAIN_PROFILE` 后执行 `pnpm run release:notarize` |
-| Windows x64 类型检查、前端测试、Vite build、Rust 测试 | 已通过 | [Windows GitHub Actions](https://github.com/sheldum03/md-html-reader/actions/workflows/ci.yml)，Rust target 为 `x86_64-pc-windows-msvc` |
+| Windows x64 类型检查、前端测试、Vite build、Rust 测试 | 已通过 | [Windows GitHub Actions](https://github.com/sheldum03/markdown-reader/actions/workflows/ci.yml)，Rust target 为 `x86_64-pc-windows-msvc` |
 | Windows 真实 Tauri E2E | 已通过 | 同一 Windows 作业；WebdriverIO embedded provider 覆盖 core、icons、sidebar、reopen，使用动态端口和 `.exe` 路径 |
 | Windows NSIS 构建与 artifact | 已通过 | 同一 Windows 作业执行 `pnpm run tauri:build:windows`，上传 `windows-nsis-x64` artifact |
 | Windows 10 22H2 / Windows 11 x64 实机验收 | 未完成 | 按 [WINDOWS_ACCEPTANCE.md](WINDOWS_ACCEPTANCE.md) 分别记录安装、核心功能、重装和卸载 |
